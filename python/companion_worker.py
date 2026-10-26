@@ -11,9 +11,10 @@ import os
 from pathlib import Path
 import sys
 from datetime import datetime, timezone
+from typing import Any
 
 os.environ.setdefault('MPLBACKEND', 'Agg')
-from engine import DataError, inspect_table, read_table, prepare, render
+from engine import DataError, STYLE_KEYS, inspect_table, read_table, prepare, render, normalize_style, plot_appearance
 
 
 def digest(path):
@@ -88,17 +89,20 @@ def convert(path, template, params):
     if not isinstance(params, dict): raise DataError('参数必须是对象。')
     if family == 'tables':
         if template not in {'box','violin','scatter','histogram','bar','heatmap'}: raise DataError('图例与表格不匹配。')
+        if set(params) - ({'chart','layout','x','y','group','valueColumns','missing'} | STYLE_KEYS): raise DataError('表格图例包含不支持的参数。')
         prepared = prepare(read_table(path), {**params, 'chart': template})
         return prepared['data'], prepared['config'], {key: prepared[key] for key in ('preview','outputColumns','inputRows','outputRows','droppedRows','steps','warnings')}
     if family == 'fastq':
         if template not in {'fastq-length','fastq-quality'}: raise DataError('请选择 FASTQ 质量图例。')
-        if set(params) - {'maxReads','metric'}: raise DataError('FASTQ 图例仅支持 maxReads 参数。')
+        if set(params) - ({'maxReads','metric'} | STYLE_KEYS): raise DataError('FASTQ 图例包含不支持的参数。')
+        style = normalize_style(params, template, width=8, height=6)
         count = checked_int(params.get('maxReads'), 10000, 1, 1000000)
         rows, truncated = fastq_rows(path, count)
         metric = 'length' if template == 'fastq-length' else 'mean_quality'
-        return rows, {'maxReads': count, 'metric': metric}, {'preview':rows[:10], 'outputRows':len(rows), 'steps':[f'依文件顺序读取前 {count} 条记录并验证四行格式；Phred+33 编码。', f'提取 {metric}，输出新的绘图表。'], 'warnings':['这是文件前缀样本，不是随机抽样，也不是全文件统计。'] if truncated else [], 'truncated':truncated}
+        return rows, {'maxReads': count, 'metric': metric, **style}, {'preview':rows[:10], 'outputRows':len(rows), 'steps':[f'依文件顺序读取前 {count} 条记录并验证四行格式；Phred+33 编码。', f'提取 {metric}，输出新的绘图表。'], 'warnings':['这是文件前缀样本，不是随机抽样，也不是全文件统计。'] if truncated else [], 'truncated':truncated}
     if family != 'single-cell' or template != 'embedding': raise DataError('图例与文件不匹配。')
-    if set(params) - {'embedding','color','maxCells'}: raise DataError('单细胞图例仅支持 embedding、color 与 maxCells 参数。')
+    if set(params) - ({'embedding','color','maxCells'} | STYLE_KEYS): raise DataError('单细胞图例包含不支持的参数。')
+    style = normalize_style(params, template, width=8, height=6)
     data = open_h5ad(path)
     try:
         embedding = params.get('embedding', 'X_umap')
@@ -112,7 +116,7 @@ def convert(path, template, params):
         if len(set(annotations)) > 30: raise DataError('分类着色最多支持 30 类；请更换注释列。')
         rows = [{'cell':str(data.obs_names[i]), 'x':float(point[0]), 'y':float(point[1]), 'group':annotations[i]} for i,point in enumerate(coordinates)]
         if not rows or any(not math.isfinite(r['x']) or not math.isfinite(r['y']) for r in rows): raise DataError('嵌入为空或含非有限坐标。')
-        return rows, {'embedding':embedding, 'color':color, 'maxCells':count}, {'preview':rows[:10], 'outputRows':len(rows), 'inputRows':data.n_obs, 'steps':[f'提取 {embedding} 前两维与注释 {color or "无"}，不读取完整表达矩阵。'], 'warnings':['只绘制前 N 个细胞，非随机抽样。'] if data.n_obs > count else []}
+        return rows, {'embedding':embedding, 'color':color, 'maxCells':count, **style}, {'preview':rows[:10], 'outputRows':len(rows), 'inputRows':data.n_obs, 'steps':[f'提取 {embedding} 前两维与注释 {color or "无"}，不读取完整表达矩阵。'], 'warnings':['只绘制前 N 个细胞，非随机抽样。'] if data.n_obs > count else []}
     finally: data.file.close()
 
 
@@ -121,17 +125,25 @@ def draw_local(rows, template, normalized, output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=(8,6), layout='constrained')
-    if template == 'embedding':
-        for label in dict.fromkeys(row['group'] for row in rows):
-            subset = [r for r in rows if r['group'] == label]
-            ax.scatter([float(r['x']) for r in subset], [float(r['y']) for r in subset], s=4, alpha=.7, label=label, rasterized=True)
-        ax.set(xlabel=f'{normalized["embedding"]} 1', ylabel=f'{normalized["embedding"]} 2'); ax.legend(frameon=False, markerscale=3, fontsize=7)
-    else:
-        metric = normalized['metric']; ax.hist([float(r[metric]) for r in rows], bins=40, color='#217A72')
-        ax.set(xlabel='Read length (nt)' if metric == 'length' else 'Mean read quality (Phred+33)', ylabel='Read count')
-    for extension in ('png','svg','pdf'): fig.savefig(output / f'chart.{extension}', dpi=180)
-    plt.close(fig)
+    appearance = plot_appearance(normalized)
+    with plt.rc_context(appearance['rc']):
+        fig, ax = plt.subplots(figsize=(normalized['width'],normalized['height']), layout='constrained')
+        if template == 'embedding':
+            for index, label in enumerate(dict.fromkeys(row['group'] for row in rows)):
+                subset = [r for r in rows if r['group'] == label]
+                ax.scatter([float(r['x']) for r in subset], [float(r['y']) for r in subset], s=normalized['pointSize'], alpha=normalized['alpha'], color=appearance['colors'][index % len(appearance['colors'])], label=label, rasterized=True)
+            ax.set(xlabel=normalized['xLabel'] or f'{normalized["embedding"]} 1', ylabel=normalized['yLabel'] or f'{normalized["embedding"]} 2')
+            ax.legend(frameon=False, markerscale=3)
+        else:
+            metric = normalized['metric']; ax.hist([float(r[metric]) for r in rows], bins=40, color=appearance['colors'][0], alpha=normalized['alpha'])
+            ax.set(xlabel=normalized['xLabel'] or ('Read length (nt)' if metric == 'length' else 'Mean read quality (Phred+33)'), ylabel=normalized['yLabel'] or 'Read count')
+        ax.set_title(normalized['title'], loc='left', pad=15)
+        details = {'fontFamily':appearance['font'], 'axisLabels':{'x':ax.get_xlabel(),'y':ax.get_ylabel()}, 'pngDpi':normalized['dpi'],
+                   'appearance':{key:normalized[key] for key in ('palette','fontSize','alpha','width','height','dpi','pointSize') if key in normalized},
+                   'normalization':'none', 'statisticalTests':'none', 'allObservationsPlotted':True}
+        for extension in ('png','svg','pdf'): fig.savefig(output / f'chart.{extension}', dpi=normalized['dpi'], facecolor='white')
+        plt.close(fig)
+    return details
 
 
 def execute(path, template, params, output):
@@ -143,11 +155,11 @@ def execute(path, template, params, output):
     output.mkdir(parents=True, exist_ok=True)
     with (output / 'processed.csv').open('w', encoding='utf-8', newline='') as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
-    draw_local(rows, template, normalized, output)
+    plot = draw_local(rows, template, normalized, output)
     versions = {name:importlib.metadata.version(name) for name in ('numpy','matplotlib')}
-    manifest = {'schemaVersion':1, 'createdAt':datetime.now(timezone.utc).isoformat(), 'inputSha256':digest(path), 'template':template, 'parameters':normalized, 'preview':preview, 'rows':len(rows), 'processedSha256':digest(output/'processed.csv'), 'dependencies':versions, 'pythonVersion':sys.version.split()[0], 'reproduction':'python analysis.py [OUTPUT_DIR] reproduces the figure from processed.csv, without modifying source FASTQ/H5AD.'}
+    manifest = {'schemaVersion':1, 'createdAt':datetime.now(timezone.utc).isoformat(), 'inputSha256':digest(path), 'template':template, 'parameters':normalized, 'preview':preview, 'rows':len(rows), 'processedSha256':digest(output/'processed.csv'), 'dependencies':versions, 'pythonVersion':sys.version.split()[0], 'plot':plot, 'reproduction':'python analysis.py [OUTPUT_DIR] reproduces the figure from processed.csv, without modifying source FASTQ/H5AD.'}
     (output / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
-    preamble = '#!/usr/bin/env python3\n"""Reproduce the exported figure from the reviewed processed.csv."""\nimport csv\nimport hashlib\nimport json\nimport os\nimport sys\nfrom pathlib import Path\nos.environ.setdefault("MPLBACKEND", "Agg")\n\n'
+    preamble = '#!/usr/bin/env python3\n"""Reproduce the exported figure from the reviewed processed.csv."""\nimport csv\nimport hashlib\nimport json\nimport os\nimport sys\nfrom pathlib import Path\nfrom typing import Any\nos.environ.setdefault("MPLBACKEND", "Agg")\n\n'
     entrypoint = '''
 if __name__ == '__main__':
     base = Path(__file__).resolve().parent
@@ -161,7 +173,7 @@ if __name__ == '__main__':
     draw_local(rows, manifest['template'], manifest['parameters'], target)
     print(json.dumps({'rows':len(rows), 'output':str(target)}))
 '''
-    (output/'analysis.py').write_text(preamble+inspect.getsource(draw_local)+entrypoint, encoding='utf-8')
+    (output/'analysis.py').write_text(preamble+inspect.getsource(plot_appearance)+'\n\n'+inspect.getsource(draw_local)+entrypoint, encoding='utf-8')
     (output/'requirements.txt').write_text(''.join(f'{name}=={version}\n' for name,version in versions.items()), encoding='utf-8')
     return {'rows':len(rows), 'warnings':preview['warnings']}
 

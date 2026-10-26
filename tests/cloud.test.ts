@@ -60,7 +60,7 @@ test('agent executes actual tools and sends their results back before answering'
   });
   assert.equal(requests, 2);
   assert.equal(messages.at(-1)?.content, '请确认方案。');
-  assert.equal(events.at(-1)?.url, '/workbench?plan=real-plan');
+  assert.equal(events.at(-1)?.url, '/?view=analysis&plan=real-plan');
 });
 
 test('stopping a multi-tool batch leaves complete call/result pairs for resuming', async () => {
@@ -124,7 +124,7 @@ test('model tools can draft a local plan but never execute or install without th
     };
     assert(!toolDefinitions.some(tool=>/run_approved|install|approve/.test(tool.function.name)));
     const result = await executeTool('bio_preview_plan',{datasetId:recordId,template:'box',params:{layout:'wide',missing:'error',valueColumns:['Control','Treatment']}},new AbortController().signal) as {status:string;workbenchUrl:string};
-    assert.equal(result.status,'draft'); assert.equal(result.workbenchUrl,`/workbench?plan=${recordId}`);
+    assert.equal(result.status,'draft'); assert.equal(result.workbenchUrl,`/?view=analysis&plan=${recordId}`);
     await assert.rejects(executeTool('bio_run_approved_plan',{planId:recordId},new AbortController().signal),/没有这个工具/);
     await assert.rejects(executeTool('bio_preview_plan',{datasetId:'../../file',template:'box',params:{}},new AbortController().signal),/记录 ID/);
     assert.equal(calls.length,1);
@@ -148,5 +148,32 @@ test('a rejected model API key does not discard the local assistant pairing', as
   } finally {
     globalThis.fetch=originalFetch;
     for(const [key,descriptor] of descriptors)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);
+  }
+});
+
+
+test('main navigation restores legacy plan/run links and preserves chat dataset context', async () => {
+  const {safeAppLink,appRoute,messageParts} = await import('../web/src/navigation.ts');
+  const recordId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  assert.equal(safeAppLink(`/workbench?run=${recordId}`),`/?view=analysis&run=${recordId}`);
+  assert.equal(safeAppLink(`/workbench/?plan=${recordId}`),`/?view=analysis&plan=${recordId}`);
+  assert.deepEqual(appRoute(`/?dataset=${recordId}`),{view:'chat',request:{dataset:recordId}});
+  assert.deepEqual(appRoute(`/?view=analysis&dataset=${recordId}`),{view:'analysis',request:{dataset:recordId}});
+  assert.deepEqual(appRoute('/?view=environments'),{view:'environments',request:{}});
+  assert.deepEqual(messageParts(`查看 [原结果](/workbench?run=${recordId}) 和 [环境](/?view=environments)`),[
+    {text:'查看 '},{text:'原结果',href:`/?view=analysis&run=${recordId}`},{text:' 和 '},{text:'环境',href:'/?view=environments'},{text:''},
+  ]);
+  for(const unsafe of ['//evil.example','/\\evil.example','/workbench/cloud','/workbench?next=https://evil.example','/?view=genomes','/?view=analysis&plan=../../secret','/?view=analysis&run=one&run=two','/api/chat','/?view=analysis#attack','https://bioinfobuddy.com.cn/?view=analysis']) assert.equal(safeAppLink(unsafe),undefined,unsafe);
+  assert.deepEqual(messageParts('[unsafe](//evil.example)'),[{text:''},{text:'[unsafe](//evil.example)'},{text:''}]);
+});
+
+test('agent result links accept the main shell and reject non-app destinations', async () => {
+  for(const [url,expected] of [['/?view=analysis&run=real-run','/?view=analysis&run=real-run'],['/?view=environments','/?view=environments'],['/workbench/cloud',undefined],['//evil.example',undefined]]) {
+    let rounds=0; const events:ToolEvent[]=[];
+    await runAgent({messages:[{role:'user',content:'result'}],signal:new AbortController().signal,
+      request:async()=>++rounds===1?{role:'assistant',content:null,tool_calls:[{id:'link',type:'function',function:{name:'open',arguments:'{}'}}]}:{role:'assistant',content:'ready'},
+      execute:async()=>({workbenchUrl:url}),changed:async(_messages,event)=>{if(event)events.push({...event});},
+    });
+    assert.equal(events.at(-1)?.url,expected);
   }
 });

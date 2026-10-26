@@ -29,12 +29,78 @@ MAX_HEATMAP_ROWS = 50
 MAX_HEATMAP_COLUMNS = 30
 MAX_GROUPS = 20
 CHARTS = {"box", "violin", "bar", "scatter", "histogram", "heatmap"}
+STYLE_KEYS = {"title", "xLabel", "yLabel", "palette", "fontSize", "pointSize", "alpha", "width", "height", "dpi"}
 NUMERIC = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 NONFINITE = {"nan", "+nan", "-nan", "inf", "+inf", "-inf", "infinity", "+infinity", "-infinity"}
 
 
 class DataError(ValueError):
     """A user-actionable input or configuration error."""
+
+
+def normalize_style(config: dict[str, Any], template: str, *, width=7.2, height=4.8) -> dict[str, Any]:
+    """Validate presentation separately from mappings; return explicit saved defaults."""
+    has_points = template in {"box", "violin", "bar", "scatter", "embedding"}
+    if "pointSize" in config and not has_points:
+        raise DataError("此图例没有样本点，不支持 pointSize。")
+    is_fastq = template in {"fastq-length", "fastq-quality"}
+    palette = "teal" if is_fastq else "tab10" if template == "embedding" else "viridis" if template == "heatmap" else "colorblind"
+    style = {"title": "", "xLabel": "", "yLabel": "", "palette": palette,
+             "fontSize": 10, "alpha": 1 if template in {"heatmap", "histogram"} or is_fastq else 0.75 if template == "scatter" else 0.7,
+             "width": width, "height": height, "dpi": 180 if is_fastq or template == "embedding" else 200}
+    if has_points:
+        style["pointSize"] = 4 if template == "embedding" else 25 if template == "scatter" else 19
+    style.update({key: value for key, value in config.items() if key in STYLE_KEYS})
+    for key in ("title", "xLabel", "yLabel"):
+        if not isinstance(style[key], str) or len(style[key]) > 160 or any(ord(char) < 32 for char in style[key]):
+            raise DataError(f"{key} 必须是最多 160 字符且不含控制字符的文本。")
+    palettes = {"viridis", "plasma", "grayscale"} | (set() if template == "heatmap" else {"colorblind"})
+    if is_fastq:
+        palettes.add("teal")
+    if template == "embedding":
+        palettes.add("tab10")
+    if not isinstance(style["palette"], str) or style["palette"] not in palettes:
+        raise DataError("palette 不是此图例支持的配色。")
+    limits = {"fontSize": (6, 24), "pointSize": (1, 100), "alpha": (0.05, 1), "width": (3, 16), "height": (3, 16), "dpi": (72, 600)}
+    for key, (low, high) in limits.items():
+        if key not in style:
+            continue
+        value = style[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
+            raise DataError(f"{key} 必须是 {low} 到 {high} 之间的有限数值。")
+        if key == "dpi":
+            if int(value) != value:
+                raise DataError("dpi 必须是整数。")
+            style[key] = int(value)
+    if style["width"] * style["height"] * style["dpi"] ** 2 > 40_000_000:
+        raise DataError("图幅与分辨率组合超过 4000 万像素；请降低图幅或 dpi。")
+    return style
+
+
+def plot_appearance(config: dict[str, Any]) -> dict[str, Any]:
+    """Self-contained style resolver, embedded with the exported plotting function."""
+    import matplotlib
+    from matplotlib import font_manager
+
+    fonts = {font.name for font in font_manager.fontManager.ttflist}
+    preferred = ["Arial Unicode MS", "Noto Sans CJK SC", "PingFang SC", "Heiti TC", "Microsoft YaHei", "SimHei", "DejaVu Sans"]
+    font = next((name for name in preferred if name in fonts), "DejaVu Sans")
+    name = config.get("palette", "colorblind")
+    cmap = {"colorblind": "cividis", "grayscale": "Greys", "teal": "Greens"}.get(name, name)
+    if name == "colorblind":
+        colors = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#8C6D00", "#3D3D3D", "#56B4E9"]
+    elif name == "teal":
+        colors = ["#217A72"]
+    elif name == "tab10":
+        colors = list(matplotlib.colormaps["tab10"].colors)
+    else:
+        colors = [matplotlib.colormaps[cmap](value) for value in (0.15, 0.8, 0.35, 0.95, 0.55, 0.7, 0.25)]
+    size = config.get("fontSize", 10)
+    return {"font": font, "colors": colors, "cmap": cmap,
+            "rc": {"font.family": font, "font.size": size, "axes.titlesize": size * 1.3, "axes.labelsize": size * 1.1,
+                   "legend.fontsize": size * 0.8, "axes.spines.top": False, "axes.spines.right": False,
+                   "axes.unicode_minus": False, "pdf.fonttype": 42, "svg.fonttype": "path",
+                   "axes.formatter.useoffset": False, "text.parse_math": False}}
 
 
 def doctor() -> dict[str, Any]:
@@ -218,7 +284,7 @@ def inspect_table(table: dict[str, Any]) -> dict[str, Any]:
 def validate_config(config: Any, table: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(config, dict):
         raise DataError("配置必须是 JSON 对象。")
-    allowed = {"chart", "layout", "x", "y", "group", "valueColumns", "missing", "title", "xLabel", "yLabel"}
+    allowed = {"chart", "layout", "x", "y", "group", "valueColumns", "missing"} | STYLE_KEYS
     # The server also sends plan metadata. It never becomes plotting code or an
     # exported parameter. Bind approval metadata to the actual input bytes.
     if config.get("sourceSha256") and config["sourceSha256"] != table["sha256"]:
@@ -231,7 +297,7 @@ def validate_config(config: Any, table: dict[str, Any]) -> dict[str, Any]:
         raise DataError("layout 必须是 long 或 wide。")
     if not isinstance(normalized["missing"], str) or normalized["missing"] not in {"error", "drop"}:
         raise DataError("missing 必须明确为 error 或 drop。")
-    for key in ("title", "xLabel", "yLabel", "x", "y", "group"):
+    for key in ("x", "y", "group"):
         if normalized[key] is None and key in {"x", "y", "group"}:
             normalized[key] = ""
         if not isinstance(normalized[key], str) or len(normalized[key]) > 160:
@@ -277,10 +343,16 @@ def validate_config(config: Any, table: dict[str, Any]) -> dict[str, Any]:
             raise DataError("热图行标签列不能同时作为数值矩阵列。")
         if "row_label" in value_columns:
             raise DataError("热图数值列名 row_label 与输出保留字段冲突，请先重命名。")
+    style = normalize_style(normalized, chart,
+                            width=max(7.2, len(value_columns) * 0.35 + 2) if chart == "heatmap" else 7.2,
+                            height=max(4.8, min(16, len(table["values"]) * 0.22 + 2)) if chart == "heatmap" else 4.8)
+    normalized.update(style)
     return normalized
 
 
 def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    automatic_width = isinstance(config, dict) and "width" not in config
+    automatic_height = isinstance(config, dict) and "height" not in config
     config = validate_config(config, table)
     chart = config["chart"]
     output = []
@@ -348,6 +420,13 @@ def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
         raise DataError(f"有 {len(groups)} 个分组，最多支持 {MAX_GROUPS} 组；请减少分组。")
     if any(len(name) > 80 for name in groups):
         raise DataError("分组标签超过 80 字符；请使用更短且可辨认的分组名称。")
+    # Resolve automatic dimensions from the actual reviewed data, then save
+    # them explicitly so reopening this run does not pick newer defaults.
+    if automatic_width and chart != "heatmap":
+        config["width"] = max(7.2, min(16, len(groups) * 0.7 + 2))
+    if automatic_height and chart == "heatmap":
+        config["height"] = max(4.8, len(output) * 0.22 + 2)
+    normalize_style(config, chart)  # Apply the pixel budget after auto sizing.
     if chart == "violin":
         for name, count in groups.items():
             values = [row["value"] for row in output if row["group"] == name]
@@ -370,23 +449,20 @@ def draw_chart(records: list[dict[str, Any]], config: dict[str, Any], output_dir
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import numpy as np
-    from matplotlib import font_manager
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     chart = config["chart"]
-    palette = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#8C6D00", "#3D3D3D", "#56B4E9"]
+    appearance = plot_appearance(config)
+    palette = appearance["colors"]
     markers = ["o", "s", "^", "D", "v", "P", "X"]
     groups = list(dict.fromkeys(str(row["group"]) for row in records if "group" in row))
-    fonts = {font.name for font in font_manager.fontManager.ttflist}
-    preferred = ["Arial Unicode MS", "Noto Sans CJK SC", "PingFang SC", "Heiti TC", "Microsoft YaHei", "SimHei", "DejaVu Sans"]
-    font = next((name for name in preferred if name in fonts), "DejaVu Sans")
-    result: dict[str, Any] = {"fontFamily": font, "jitterSeed": 42, "allObservationsPlotted": True, "normalization": "none", "statisticalTests": "none", "pngDpi": 200, "svgText": "paths", "groupCounts": {name: sum(str(row.get("group")) == name for row in records) for name in groups}}
-    width = max(7.2, min(16, len(groups) * 0.7 + 2))
-    height = max(4.8, len(records) * 0.22 + 2) if chart == "heatmap" else 4.8
-    if chart == "heatmap":
-        width = max(7.2, len(config["valueColumns"]) * 0.35 + 2)
-    with plt.rc_context({"font.family": font, "font.size": 10, "axes.titlesize": 13, "axes.labelsize": 11, "axes.spines.top": False, "axes.spines.right": False, "axes.unicode_minus": False, "pdf.fonttype": 42, "svg.fonttype": "path", "axes.formatter.useoffset": False, "text.parse_math": False}):
+    result: dict[str, Any] = {"fontFamily": appearance["font"], "jitterSeed": 42, "allObservationsPlotted": True, "normalization": "none", "statisticalTests": "none", "pngDpi": config["dpi"], "svgText": "paths", "groupCounts": {name: sum(str(row.get("group")) == name for row in records) for name in groups}, "appearance": {key: config[key] for key in ("palette", "fontSize", "alpha", "width", "height", "dpi")}}
+    if "pointSize" in config:
+        result["appearance"]["pointSize"] = config["pointSize"]
+    width, height = config["width"], config["height"]
+    alpha = config["alpha"]
+    with plt.rc_context(appearance["rc"]):
         fig, ax = plt.subplots(figsize=(width, height), layout="constrained")
         ax.set_facecolor("white")
         fig.set_facecolor("white")
@@ -398,25 +474,25 @@ def draw_chart(records: list[dict[str, Any]], config: dict[str, Any], output_dir
             if chart == "box":
                 boxes = ax.boxplot(arrays, positions=positions, widths=0.5, patch_artist=True, showfliers=False, whis=1.5, medianprops={"color": "#222222", "linewidth": 1.5})
                 for index, patch in enumerate(boxes["boxes"]):
-                    patch.set(facecolor=palette[index % len(palette)], alpha=0.18, edgecolor="#333333")
+                    patch.set(facecolor=palette[index % len(palette)], alpha=alpha * (0.18 / 0.7), edgecolor="#333333")
                 result["estimator"] = "quartiles and 1.5 IQR whiskers; all raw observations overlaid"
             elif chart == "violin":
                 violins = ax.violinplot(arrays, positions=positions, widths=0.75, showmeans=False, showmedians=True, showextrema=False, bw_method="scott")
                 for index, body in enumerate(violins["bodies"]):
                     body.set_facecolor(palette[index % len(palette)])
                     body.set_edgecolor("#333333")
-                    body.set_alpha(0.2)
+                    body.set_alpha(alpha * (0.2 / 0.7))
                 violins["cmedians"].set_color("#333333")
                 result["density"] = {"method": "Gaussian KDE", "bandwidth": "Scott", "evaluationPoints": 100}
             else:
                 means = [float(np.mean(array)) for array in arrays]
-                ax.bar(positions, means, width=0.58, color=[palette[index % len(palette)] for index in range(len(groups))], alpha=0.22, edgecolor="#333333", linewidth=0.8)
+                ax.bar(positions, means, width=0.58, color=[palette[index % len(palette)] for index in range(len(groups))], alpha=alpha * (0.22 / 0.7), edgecolor="#333333", linewidth=0.8)
                 ax.axhline(0, color="#444444", linewidth=0.8)
                 result["estimator"] = "arithmetic mean; no uncertainty interval or statistical test"
                 result["groupMeans"] = dict(zip(groups, means))
             for index, values in enumerate(arrays):
                 offsets = rng.uniform(-0.12, 0.12, len(values))
-                ax.scatter(np.full(len(values), index + 1) + offsets, values, color=palette[index % len(palette)], marker=markers[index % len(markers)], s=19, alpha=0.7, linewidths=0.3, edgecolors="white", rasterized=len(records) > 3000)
+                ax.scatter(np.full(len(values), index + 1) + offsets, values, color=palette[index % len(palette)], marker=markers[index % len(markers)], s=config["pointSize"], alpha=alpha, linewidths=0.3, edgecolors="white", rasterized=len(records) > 3000)
             if chart == "bar":
                 # Set limits only after adding observations; include every raw
                 # extreme and the zero baseline, not merely the group means.
@@ -432,37 +508,37 @@ def draw_chart(records: list[dict[str, Any]], config: dict[str, Any], output_dir
         elif chart == "scatter":
             for index, name in enumerate(groups or [None]):
                 subset = [row for row in records if name is None or str(row["group"]) == name]
-                ax.scatter([float(row["x"]) for row in subset], [float(row["y"]) for row in subset], label=f"{name} (n={len(subset)})" if name is not None else None, color=palette[index % len(palette)], marker=markers[index % len(markers)], s=25, alpha=0.75, linewidths=0.3, edgecolors="white", rasterized=len(records) > 3000)
+                ax.scatter([float(row["x"]) for row in subset], [float(row["y"]) for row in subset], label=f"{name} (n={len(subset)})" if name is not None else None, color=palette[index % len(palette)], marker=markers[index % len(markers)], s=config["pointSize"], alpha=alpha, linewidths=0.3, edgecolors="white", rasterized=len(records) > 3000)
             ax.set_xlabel(config.get("xLabel") or config.get("x") or "x")
             ax.set_ylabel(config.get("yLabel") or config.get("y") or "y")
             if groups:
-                ax.legend(frameon=False, fontsize=8, bbox_to_anchor=(1.01, 1), loc="upper left")
+                ax.legend(frameon=False, bbox_to_anchor=(1.01, 1), loc="upper left")
         elif chart == "histogram":
             all_values = np.asarray([float(row["value"]) for row in records])
             edges = np.histogram_bin_edges(all_values, bins=20)
             for index, name in enumerate(groups or [None]):
                 values = [float(row["value"]) for row in records if name is None or str(row["group"]) == name]
-                ax.hist(values, bins=edges, histtype="step", linewidth=1.6, linestyle=["-", "--", ":", "-."][index % 4], label=f"{name} (n={len(values)})" if name is not None else None, color=palette[index % len(palette)])
+                ax.hist(values, bins=edges, histtype="step", linewidth=1.6, linestyle=["-", "--", ":", "-."][index % 4], label=f"{name} (n={len(values)})" if name is not None else None, color=palette[index % len(palette)], alpha=alpha)
             ax.set_xlabel(config.get("xLabel") or config.get("y") or "Value")
             ax.set_ylabel(config.get("yLabel") or "Count")
             ax.set_ylim(bottom=0)
             if groups:
-                ax.legend(frameon=False, fontsize=8)
+                ax.legend(frameon=False)
             result["histogram"] = {"binEdges": edges.tolist(), "intervalConvention": "left-inclusive, right-exclusive; final interval includes right edge", "density": False}
         else:
             names = config["valueColumns"]
             matrix = np.asarray([[float(row[name]) for name in names] for row in records])
-            image = ax.imshow(matrix, aspect="auto", interpolation="nearest", cmap="viridis")
+            image = ax.imshow(matrix, aspect="auto", interpolation="nearest", cmap=appearance["cmap"], alpha=alpha)
             ax.set_xticks(range(len(names)), names, rotation=45, ha="right")
             ax.set_yticks(range(len(records)), [str(row["row_label"]) for row in records])
             ax.set_xlabel(config.get("xLabel") or "Selected columns")
             ax.set_ylabel(config.get("yLabel") or config.get("x") or "Source row")
             fig.colorbar(image, ax=ax, label="Original value", shrink=0.8)
-            result["colorScale"] = {"type": "linear", "minimum": float(matrix.min()), "maximum": float(matrix.max()), "palette": "viridis"}
+            result["colorScale"] = {"type": "linear", "minimum": float(matrix.min()), "maximum": float(matrix.max()), "palette": config["palette"]}
         result["axisLabels"] = {"x": ax.get_xlabel(), "y": ax.get_ylabel()}
         result["axisLimits"] = {"x": [float(value) for value in ax.get_xlim()], "y": [float(value) for value in ax.get_ylim()]}
         for extension in ("png", "svg", "pdf"):
-            fig.savefig(output_dir / f"chart.{extension}", format=extension, dpi=200, facecolor="white")
+            fig.savefig(output_dir / f"chart.{extension}", format=extension, dpi=config["dpi"], facecolor="white")
         plt.close(fig)
     return result
 
@@ -516,7 +592,7 @@ def render(table: dict[str, Any], config: dict[str, Any], output_path: str | Pat
     details = draw_chart(records, manifest["config"], target)
     print(json.dumps({"rows": len(records), "groups": details["groupCounts"], "output": str(target)}, ensure_ascii=False))
 '''
-    (output_dir / "analysis.py").write_text(preamble + inspect.getsource(draw_chart) + entrypoint, encoding="utf-8")
+    (output_dir / "analysis.py").write_text(preamble + inspect.getsource(plot_appearance) + "\n\n" + inspect.getsource(draw_chart) + entrypoint, encoding="utf-8")
     (output_dir / "requirements.txt").write_text("\n".join(f"{name}=={version}" for name, version in versions.items()) + "\n", encoding="utf-8")
     return {"rows": prepared["outputRows"], "groups": len(prepared["groups"]), "groupCounts": prepared["groups"]}
 

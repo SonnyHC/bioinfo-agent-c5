@@ -36,13 +36,13 @@ async function body(req, max = 1024 * 1024) {
   if(!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('参数必须是对象。');
   return value;
 }
-function command(executable,args,{cwd=root,input='',onLog=()=>{},timeout=20*60*1000,env={}}={}) {
+function command(executable,args,{cwd=root,input='',onLog=()=>{},logStdout=false,timeout=20*60*1000,env={}}={}) {
   return new Promise((resolve,reject)=>{
     const child=spawn(executable,args,{cwd,shell:false,stdio:['pipe','pipe','pipe'],env:{...process.env,...env}});
     let output='', errors='', exceeded=false, killTimer;
     const stop=()=>{exceeded=true;child.kill('SIGTERM');killTimer=setTimeout(()=>child.kill('SIGKILL'),2000);killTimer.unref();};
     const timer=setTimeout(stop,timeout);
-    child.stdout.on('data',chunk=>{if(exceeded)return;output+=chunk; if(output.length>2*1024*1024)stop();});
+    child.stdout.on('data',chunk=>{if(exceeded)return;output+=chunk;if(logStdout)onLog(String(chunk).slice(-2000));if(output.length>2*1024*1024)stop();});
     child.stderr.on('data',chunk=>{errors=(errors+chunk).slice(-12000);onLog(String(chunk).slice(-2000));});
     child.on('error',error=>{clearTimeout(timer);clearTimeout(killTimer);reject(new Error(`${path.basename(executable)} 无法启动：${error.code || error.message}`));});
     child.on('close',code=>{clearTimeout(timer);clearTimeout(killTimer);code===0&&!exceeded?resolve(output):reject(new Error(exceeded?'任务超时或输出过大。':errors.trim()||`进程退出：${code}`));});
@@ -58,8 +58,8 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
   const allowedOrigins=new Set([...origins,`http://127.0.0.1:${port}`,...extraOrigins]);
   const auth=randomBytes(32).toString('hex'); let pairUsed=false, pairedOrigin='', attempts=0, attemptWindow=Date.now();
   const pairExpiry=Date.now()+15*60*1000;
-  const tasks=new Map(), installing=new Set(), running=new Set();
-  await Promise.all(['datasets','plans','runs','environments'].map(name=>mkdir(path.join(dataDir,name),{recursive:true,mode:0o700})));
+  const tasks=new Map(), installing=new Set(), running=new Set(), installations=new Map();
+  await Promise.all(['datasets','plans','runs','environments','skills'].map(name=>mkdir(path.join(dataDir,name),{recursive:true,mode:0o700})));
   const recordPath=(store,id)=>{if(!uuid(id))throw new Error('记录 ID 无效。');return path.join(dataDir,store,`${id}.json`);};
   const readRecord=async(store,id)=>JSON.parse(await readFile(recordPath(store,id),'utf8'));
   const verifySource=async item=>{
@@ -78,11 +78,24 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
   let recovery=Promise.resolve(), recoveryError;
   const skillFor=id=>{const found=catalog.find(item=>item.id===id);if(!found)throw new Error('请选择内置技能。');return found;};
   const envDir=id=>path.join(dataDir,'environments',id);
+  // Keep installation state beside the venv so uv can create an initially empty directory.
+  const installationPath=id=>path.join(dataDir,'environments',`${id}.installation.json`);
   const python=id=>path.join(envDir(id),process.platform==='win32'?'Scripts/python.exe':'bin/python');
   const uv=existsSync(path.join(root,'runtime',process.platform==='win32'?'uv.exe':'uv'))?path.join(root,'runtime',process.platform==='win32'?'uv.exe':'uv'):process.env.BIOINFO_UV || 'uv';
   const rscript=process.env.BIOINFO_RSCRIPT || 'Rscript';
   const ready=async id=>{
     try {const info=JSON.parse(await readFile(path.join(envDir(id),'ready.json'),'utf8'));return info.version===skillFor(id).version&&(id==='r-script'?existsSync(path.join(envDir(id),'renv/activate.R')):existsSync(python(id)));} catch{return false;}
+  };
+  const enableSkill=async skill=>jsonFile(path.join(dataDir,'skills',`${skill.id}.json`),{id:skill.id,version:skill.version,enabledAt:new Date().toISOString()});
+  const skillStatus=async skill=>{
+    const installed=await ready(skill.id);
+    let enabled=installed; // Migrate capabilities already usable before skill/environment separation.
+    try {const saved=JSON.parse(await readFile(path.join(dataDir,'skills',`${skill.id}.json`),'utf8'));enabled ||= saved.version===skill.version;} catch(error){if(error.code!=='ENOENT')throw error;}
+    const saved=installations.get(skill.id), active=saved?.jobId?tasks.get(saved.jobId):null;
+    const environment=saved?.status==='installing'||saved?.status==='failed'
+      ? {...saved,...(active?{log:active.log}:{} )}
+      : {...saved,status:installed?'ready':'missing'};
+    return {...skill,installed,enabled,environment};
   };
   const worker=async(id,request,onLog)=>{
     if(!await ready(id))throw new Error('请先安装此技能的分析环境。');
@@ -94,7 +107,7 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
     if(tasks.size>=200)throw new Error('本地任务过多，请等待当前任务结束。');
     const id=randomUUID();const state={id,status:'running',log:'',createdAt:new Date().toISOString()};tasks.set(id,state);
     const log=text=>{state.log=(state.log+text).slice(-12000);};
-    Promise.resolve().then(()=>work(log)).then(result=>Object.assign(state,{status:'completed',result})).catch(error=>Object.assign(state,{status:'failed',error:error.message}));
+    Promise.resolve().then(()=>work(log,state)).then(result=>Object.assign(state,{status:'completed',result})).catch(error=>Object.assign(state,{status:'failed',error:error.message}));
     return state;
   }
   const server=createServer(async(req,res)=>{
@@ -131,26 +144,47 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
       if(supplied.length!==expected.length||!timingSafeEqual(supplied,expected)){send(401,{error:'请连接本地助手。',code:'COMPANION_AUTH_REQUIRED'});return;}
       if(origin&&origin!==pairedOrigin){send(403,{error:'此令牌属于另一个网站来源，请重启助手后重新配对。'});return;}
       if(route==='/status'&&req.method==='GET'){
-        send(200,{version:'0.3.0',skills:await Promise.all(catalog.map(async skill=>({...skill,installed:await ready(skill.id)}))),datasets:await records('datasets'),runs:await records('runs'),dataDir});return;
+        send(200,{version:'0.3.0',skills:await Promise.all(catalog.map(skillStatus)),datasets:await records('datasets'),runs:await records('runs'),dataDir});return;
       }
       if(/^\/(datasets|plans|runs)\/[^/]+$/.test(route)&&req.method==='GET'){
         const [,store,id]=route.split('/');send(200,await readRecord(store,id));return;
       }
+      if(route==='/skills/enable'&&req.method==='POST'){
+        const {id}=await body(req);const skill=skillFor(id);
+        await enableSkill(skill);send(200,await skillStatus(skill));return;
+      }
       if(route==='/skills/install'&&req.method==='POST'){
         const {id}=await body(req);const skill=skillFor(id);
         if(installing.has(id))throw new Error('此环境正在安装。');installing.add(id);
-        const state=task(async log=>{try{
+        let state;
+        try {state=task(async (log,job)=>{
+          const installation={status:'installing',jobId:job.id,log:'',updatedAt:new Date().toISOString()};
+          installations.set(id,installation);
+          let writes=Promise.resolve();
+          const persist=()=>{const snapshot={...installation};writes=writes.then(()=>jsonFile(installationPath(id),snapshot));return writes;};
+          const progress=text=>{log(text);installation.log=job.log;installation.updatedAt=new Date().toISOString();};
+          const phase=async text=>{progress(text+'\n');await persist();};
+          try{
           await mkdir(envDir(id),{recursive:true});
+          await enableSkill(skill);
+          await rm(path.join(envDir(id),'ready.json'),{force:true});
+          await phase('正在准备独立分析环境。');
           if(skill.runtime==='python'){
             const env={UV_CACHE_DIR:path.join(dataDir,'cache/uv'),UV_PYTHON_INSTALL_DIR:path.join(dataDir,'runtime/python')};
-            if(!existsSync(python(id)))await command(uv,['venv','--python','3.12',envDir(id)],{onLog:log,env});
-            await command(uv,['pip','install','--python',python(id),'-r',path.join(root,'companion/requirements',skill.requirements)],{onLog:log,env});
+            if(!existsSync(python(id)))await command(uv,['venv','--python','3.12',envDir(id)],{onLog:progress,env});
+            await phase('正在安装技能所需的 Python 依赖。');
+            await command(uv,['pip','install','--python',python(id),'-r',path.join(root,'companion/requirements',skill.requirements)],{onLog:progress,env});
+            await phase('正在验证依赖是否可以导入。');
             await command(python(id),['-c',id==='single-cell'?'import anndata, matplotlib, openpyxl':'import numpy, pandas, matplotlib, openpyxl']);
           }else{
-            await command(rscript,['--vanilla','-e','dir.create("bootstrap",showWarnings=FALSE); .libPaths(c(normalizePath("bootstrap"),.libPaths())); if (!requireNamespace("renv",quietly=TRUE)) install.packages("renv",lib="bootstrap",repos="https://cloud.r-project.org"); renv::init(bare=TRUE); renv::snapshot(prompt=FALSE)'],{cwd:envDir(id),onLog:log,env:{RENV_PATHS_ROOT:path.join(dataDir,'cache/renv')}});
+            await phase('正在初始化 R renv 包环境。');
+            await command(rscript,['--vanilla','-e','dir.create("bootstrap",showWarnings=FALSE); .libPaths(c(normalizePath("bootstrap"),.libPaths())); if (!requireNamespace("renv",quietly=TRUE)) install.packages("renv",lib="bootstrap",repos="https://cloud.r-project.org"); renv::init(bare=TRUE); renv::snapshot(prompt=FALSE)'],{cwd:envDir(id),onLog:progress,logStdout:true,env:{RENV_PATHS_ROOT:path.join(dataDir,'cache/renv')}});
           }
-          await jsonFile(path.join(envDir(id),'ready.json'),{version:skill.version,installedAt:new Date().toISOString()});return {skill:id};
-        }finally{installing.delete(id);}});send(202,state);return;
+          await jsonFile(path.join(envDir(id),'ready.json'),{version:skill.version,installedAt:new Date().toISOString()});
+          installation.status='ready';await phase('分析环境已就绪。');return {skill:id};
+        }catch(error){installation.status='failed';installation.error=error.message;installation.log=job.log;installation.updatedAt=new Date().toISOString();await persist();throw error;}
+        finally{installing.delete(id);}});}catch(error){installing.delete(id);throw error;}
+        send(202,state);return;
       }
       if(route.startsWith('/jobs/')&&req.method==='GET'){const job=tasks.get(route.split('/')[2]);if(!job)throw new Error('任务已过期，请刷新状态。');send(200,job);return;}
       if(route==='/datasets'&&req.method==='POST'){
@@ -173,12 +207,27 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
         const value=await body(req);const item=await readRecord('datasets',value.datasetId);
         const source=await verifySource(item);
         if(!allowedTemplates[item.kind].includes(value.template))throw new Error('图例与数据格式不匹配。');
+        let parent=null;
+        if(value.parentRunId!=null){
+          const previous=await readRecord('runs',value.parentRunId);
+          parent=await readRecord('plans',previous.planId);
+          if(previous.status!=='completed'||previous.datasetId!==item.id||previous.template!==value.template||parent.datasetId!==item.id||parent.template!==value.template||parent.sourceSha256!==item.sha256)throw new Error('原图必须是同一源文件和图例的已完成结果。');
+        }
         let preview, dataSha256=null;
         if(item.kind==='r-script'){
+          if(value.params!=null&&(typeof value.params!=='object'||Array.isArray(value.params)||Object.keys(value.params).length))throw new Error('自有 R 脚本不支持通用外观参数；请修改脚本后重新导入。');
           if(value.dataId){const data=await readRecord('datasets',value.dataId);if(data.kind!=='tables')throw new Error('R 脚本的附加数据应是表格。');await verifySource(data);dataSha256=data.sha256;}
           preview={params:{},preview:[],steps:['运行你导入的 R 脚本；input_file 为附加数据，output_dir 为独立结果目录。'],warnings:['脚本拥有当前用户权限，独立包环境不是安全沙箱。请先阅读全部代码并确认信任。']};
         }else preview=await worker(item.kind,{action:'preview',path:source,sha256:item.sha256,template:value.template,params:value.params});
-        const plan={...preview,id:randomUUID(),datasetId:item.id,template:value.template,dataId:item.kind==='r-script'?value.dataId||null:null,dataSha256,sourceSha256:item.sha256,status:'draft',createdAt:new Date().toISOString()};
+        const parameterChanges={};
+        if(parent){
+          for(const key of new Set([...Object.keys(parent.params),...Object.keys(preview.params)])){
+            const before=parent.params[key]??null,after=preview.params[key]??null;
+            if(JSON.stringify(before)!==JSON.stringify(after))parameterChanges[key]={before,after};
+          }
+          if(item.kind==='r-script'&&(parent.dataId||null)!==(value.dataId||null))parameterChanges.dataId={before:parent.dataId||null,after:value.dataId||null};
+        }
+        const plan={...preview,id:randomUUID(),datasetId:item.id,template:value.template,dataId:item.kind==='r-script'?value.dataId||null:null,dataSha256,sourceSha256:item.sha256,parentRunId:value.parentRunId??null,parameterChanges,status:'draft',createdAt:new Date().toISOString()};
         await jsonFile(recordPath('plans',plan.id),plan);send(201,plan);return;
       }
       if(route==='/runs'&&req.method==='POST'){
@@ -187,7 +236,7 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
         if(item.kind==='r-script'&&value.trustScript!==true)throw new Error('需要确认信任此 R 脚本。');
         if(!await ready(item.kind))throw new Error('请先安装分析环境。');
         if(running.has(plan.id))throw new Error('此方案正在运行。');running.add(plan.id);
-        const record={id:randomUUID(),planId:plan.id,datasetId:item.id,name:item.name,template:plan.template,status:'running',createdAt:new Date().toISOString(),artifacts:[]};await jsonFile(recordPath('runs',record.id),record);
+        const record={id:randomUUID(),planId:plan.id,datasetId:item.id,name:item.name,template:plan.template,parentRunId:plan.parentRunId??null,parameterChanges:plan.parameterChanges??{},status:'running',createdAt:new Date().toISOString(),artifacts:[]};await jsonFile(recordPath('runs',record.id),record);
         const state=task(async log=>{const output=path.join(dataDir,'runs',record.id);try{
           await mkdir(output);const source=await verifySource({...item,sha256:plan.sourceSha256});
           if(item.kind==='r-script'){
@@ -199,6 +248,12 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
             record.summary={note:'用户 R 脚本执行结束，请核对输出。'};
           }else record.summary=await worker(item.kind,{action:'render',path:source,sha256:plan.sourceSha256,template:plan.template,params:plan.params,output},log);
           await jsonFile(path.join(output,'plan.json'),plan);
+          const provenance={schemaVersion:1,runId:record.id,planId:plan.id,parentRunId:record.parentRunId,datasetId:item.id,sourceSha256:plan.sourceSha256,template:plan.template,parameters:plan.params,parameterChanges:record.parameterChanges,dataId:plan.dataId??null,dataSha256:plan.dataSha256??null,createdAt:record.createdAt};
+          await jsonFile(path.join(output,'provenance.json'),provenance);
+          if(existsSync(path.join(output,'manifest.json'))){
+            const manifest=JSON.parse(await readFile(path.join(output,'manifest.json'),'utf8'));
+            await jsonFile(path.join(output,'manifest.json'),{...manifest,provenance});
+          }
           record.artifacts=[];
           for(const name of await readdir(output)){
             const info=await lstat(path.join(output,name));
@@ -226,6 +281,18 @@ export async function createCompanion({dataDir=process.env.BIOINFO_COMPANION_HOM
   // A second CLI invocation that fails with EADDRINUSE must not touch live runs.
   server.once('listening',()=>{
     recovery=(async()=>{
+      for(const skill of catalog){
+        const file=installationPath(skill.id);
+        try {
+          const saved=JSON.parse(await readFile(file,'utf8'));
+          if(saved.status==='installing'){
+            saved.status='failed';saved.error='本地助手在环境安装完成前退出，请重试安装。';saved.updatedAt=new Date().toISOString();
+            await rm(path.join(envDir(skill.id),'ready.json'),{force:true});
+            await jsonFile(file,saved);
+          }
+          installations.set(skill.id,saved);
+        }catch(error){if(error.code!=='ENOENT')throw error;}
+      }
       for(const run of await records('runs'))if(run.status==='running'){
         run.status='failed';run.error='本地助手在任务完成前退出。';
         await jsonFile(recordPath('runs',run.id),run);

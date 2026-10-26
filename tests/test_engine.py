@@ -5,6 +5,7 @@ import csv
 import hashlib
 import importlib.util
 import json
+import struct
 import subprocess
 import sys
 import tempfile
@@ -225,6 +226,66 @@ class EngineTests(unittest.TestCase):
                 self.assertTrue(manifest["plot"]["allObservationsPlotted"])
         bar = json.loads((self.base / "bar" / "manifest.json").read_text())
         self.assertAlmostEqual(bar["plot"]["groupMeans"]["Control"], 8.916666666666666)
+
+    def test_style_validation_is_bounded_and_template_specific(self):
+        table = self.read("group,value\nA,1\nA,2\n")
+        config = {"chart": "box", "group": "group", "y": "value"}
+        invalid = [{"dpi": 0}, {"dpi": 100.5}, {"dpi": True}, {"width": 99}, {"height": 0},
+                   {"fontSize": 25}, {"pointSize": 101}, {"alpha": 0}, {"alpha": float("nan")},
+                   {"palette": "not-a-palette"}, {"title": "bad\ntext"}, {"xLabel": "x" * 161},
+                   {"fontSize": "12"}, {"width": 16, "height": 16, "dpi": 600}]
+        for patch in invalid:
+            with self.subTest(patch=patch), self.assertRaises(engine.DataError):
+                engine.prepare(table, {**config, **patch})
+        for chart in ("histogram", "heatmap"):
+            with self.subTest(chart=chart), self.assertRaisesRegex(engine.DataError, "pointSize"):
+                engine.prepare(table, {"chart": chart, "y": "value", "valueColumns": ["value"], "pointSize": 10})
+        with self.assertRaisesRegex(engine.DataError, "palette"):
+            engine.prepare(table, {"chart": "heatmap", "valueColumns": ["value"], "palette": "colorblind"})
+        normalized = engine.prepare(table, config)["config"]
+        self.assertEqual(normalized["pointSize"], 19)
+        self.assertEqual(normalized["dpi"], 200)
+        self.assertEqual(normalized["palette"], "colorblind")
+        for patch in ({"palette": "teal"}, {"palette": "tab10"}):
+            with self.assertRaisesRegex(engine.DataError, "palette"):
+                engine.prepare(table, {**config, **patch})
+
+    def test_automatic_size_uses_reviewed_group_count_and_remaining_heatmap_rows(self):
+        table = self.read("group,value\n" + "\n".join(f"G{i},{i}" for i in range(12)))
+        prepared = engine.prepare(table, {"group":"group","y":"value"})
+        self.assertAlmostEqual(prepared["config"]["width"],10.4)
+        manual = engine.prepare(table,{"group":"group","y":"value","width":6})
+        self.assertEqual(manual["config"]["width"],6)
+        matrix = self.read("value\n" + "1\n" * 20 + '""\n' * 20)
+        prepared = engine.prepare(matrix,{"chart":"heatmap","valueColumns":["value"],"missing":"drop"})
+        self.assertAlmostEqual(prepared["config"]["height"],6.4)
+
+    def test_every_style_control_changes_export_and_preserves_processed_data(self):
+        table = self.read("group,value\nA,1\nA,3\nB,2\nB,5\n")
+        base = {"chart": "box", "group": "group", "y": "value", "width": 4, "height": 3, "dpi": 72}
+        baseline = self.base / "baseline"
+        engine.render(table, base, baseline)
+        pixels = (baseline / "chart.png").read_bytes()
+        data = (baseline / "processed.csv").read_bytes()
+        changes = {"title": "Edited measurements", "xLabel": "Experiment", "yLabel": "Response",
+                   "palette": "plasma", "fontSize": 14, "pointSize": 70, "alpha": 0.25,
+                   "width": 5, "height": 4, "dpi": 144}
+        for key, value in changes.items():
+            with self.subTest(parameter=key):
+                target = self.base / key
+                engine.render(table, {**base, key: value}, target)
+                self.assertNotEqual((target / "chart.png").read_bytes(), pixels)
+                self.assertEqual((target / "processed.csv").read_bytes(), data)
+                manifest = json.loads((target / "manifest.json").read_text())
+                self.assertEqual(manifest["config"][key], value)
+        dimensions = struct.unpack(">II", (self.base / "dpi/chart.png").read_bytes()[16:24])
+        self.assertEqual(dimensions, (576, 432))
+        # The edited export reproduces the actual new pixels, without relying on
+        # the source tree or loading an old run's plotting configuration.
+        replay = subprocess.run([sys.executable, str(self.base / "palette/analysis.py")], capture_output=True, text=True, timeout=60)
+        self.assertEqual(replay.returncode, 0, replay.stderr)
+        self.assertEqual((self.base / "palette/chart.png").read_bytes(), (self.base / "palette/reproduced/chart.png").read_bytes())
+        self.assertEqual((baseline / "chart.png").read_bytes(), pixels)
 
     def test_bar_limits_include_all_raw_extremes_and_zero(self):
         table = self.read("group,value\nA,-10\nA,100\nB,2\nB,3\n")

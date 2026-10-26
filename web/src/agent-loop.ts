@@ -1,3 +1,4 @@
+import { safeAppLink } from './navigation';
 export interface ToolCall { id: string; type: 'function'; function: { name: string; arguments: string } }
 export interface Message { role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; reasoning_content?: string }
 export interface ToolEvent { id: string; name: string; state: 'running' | 'done' | 'error'; detail?: string; url?: string }
@@ -30,7 +31,7 @@ export async function runAgent(options: {
         if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('工具参数必须是对象。');
         result = await options.execute(call.function.name, args);
         event.state = 'done';
-        if (result && typeof result === 'object' && 'workbenchUrl' in result && typeof result.workbenchUrl === 'string' && /^\/workbench(?:\?|$)/.test(result.workbenchUrl)) event.url = result.workbenchUrl;
+        if (result && typeof result === 'object' && 'workbenchUrl' in result && typeof result.workbenchUrl === 'string') event.url = safeAppLink(result.workbenchUrl);
       } catch (error) {
         event.state = 'error';
         event.detail = options.signal.aborted ? '已停止' : error instanceof Error ? error.message : '工具执行失败。';

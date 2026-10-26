@@ -30,7 +30,7 @@ export async function pairCompanion(code: string) {
   window.dispatchEvent(new Event(COMPANION_CHANGE));
 }
 export type LocalKind = 'tables' | 'fastq' | 'single-cell' | 'r-script';
-export interface LocalSkill { id: LocalKind; name: string; version: string; runtime: string; description: string; extensions: string[]; installed?: boolean }
+export interface LocalSkill { id: LocalKind; name: string; version: string; runtime: string; description: string; extensions: string[]; installed?: boolean; enabled?: boolean; environment?: {status: 'missing'|'installing'|'ready'|'failed'; jobId?:string; log?:string; error?:string; updatedAt?:string} }
 export interface LocalProfile {
   columns?: (string | {name: string; type: string; missing: number})[];
   preview?: Record<string, unknown>[]; rowCount?: number; rows?: number; cells?: number; genes?: number;
@@ -38,11 +38,12 @@ export interface LocalProfile {
 }
 export interface LocalDataset { id: string; name: string; kind: LocalKind; size: number; sha256: string; createdAt: string; profile?: LocalProfile }
 export interface LocalPlan {
+  parentRunId?: string; parameterChanges?: Record<string,{before:unknown;after:unknown}>;
   id: string; datasetId: string; template: string; params: Record<string, unknown>; dataId?: string | null;
   sourceSha256: string; status: string; createdAt: string; steps: string[]; warnings: string[];
   preview: Record<string, unknown>[]; outputColumns?: string[]; inputRows?: number; outputRows?: number; droppedRows?: number;
 }
-export interface LocalRun { id: string; planId: string; datasetId: string; name: string; template: string; status: 'running' | 'completed' | 'failed'; createdAt: string; artifacts: string[]; summary?: Record<string, unknown>; error?: string }
+export interface LocalRun { parentRunId?: string; parameterChanges?: Record<string,{before:unknown;after:unknown}>; id: string; planId: string; datasetId: string; name: string; template: string; status: 'running' | 'completed' | 'failed'; createdAt: string; artifacts: string[]; summary?: Record<string, unknown>; error?: string }
 export interface LocalStatus { version: string; skills: LocalSkill[]; datasets: LocalDataset[]; runs: LocalRun[]; dataDir: string }
 export interface LocalJob { id: string; status: 'running' | 'completed' | 'failed'; log: string; error?: string; result?: unknown }
 export async function waitJob(id: string, changed: (job:LocalJob)=>void, signal?:AbortSignal): Promise<unknown> {
