@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, Laptop, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
 import { companion, companionFetch, companionConnected } from './companion';
 import { list, save } from './storage';
@@ -11,6 +11,7 @@ import Tutorial from './Tutorial';
 import { appRoute, messageParts, OPEN_ANALYSIS, safeAppLink, viewLabels } from './navigation';
 import type { AnalysisView, MainView } from './navigation';
 import './chat.css';
+const ReferenceGenomes = lazy(() => import('./ReferenceGenomes'));
 
 interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[] }
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
@@ -52,7 +53,7 @@ function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>vo
 export default function Chat() {
   const initialRoute = appRoute(window.location.pathname + window.location.search);
   const [view, setView] = useState<MainView>(initialRoute.view);
-  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'chat' || initialRoute.view === 'tutorial' ? 'analysis' : initialRoute.view);
+  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'chat' || initialRoute.view === 'tutorial' || initialRoute.view === 'genomes' ? 'analysis' : initialRoute.view);
   const mobileNavigation = useRef<HTMLDialogElement>(null);
   const [conversation, setConversation] = useState<Conversation>(fresh);
   const [history, setHistory] = useState<Conversation[]>([]);
@@ -83,7 +84,7 @@ export default function Chat() {
     const next = appRoute(safe);
     if (push) window.history.pushState(null, '', safe);
     setView(next.view);
-    if (next.view !== 'chat' && next.view !== 'tutorial') setPanelView(next.view);
+    if (next.view !== 'chat' && next.view !== 'tutorial' && next.view !== 'genomes') setPanelView(next.view);
     mobileNavigation.current?.close();
     if (next.view === 'analysis' && Object.keys(next.request).length) window.dispatchEvent(new CustomEvent(OPEN_ANALYSIS, {detail:next.request}));
     if (next.view === 'chat' && next.request.dataset) void selectForChat(next.request.dataset, false);
@@ -241,7 +242,7 @@ export default function Chat() {
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
       {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'environments',icon:Laptop},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
-      <button disabled title="入口预留，后续开放"><Dna size={17}/><span>参考基因组</span><small>预留</small></button>
+      <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
     <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>对话会保存在此浏览器</p>}</nav>
@@ -272,7 +273,8 @@ export default function Chat() {
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx,.fastq,.fq,.gz,.h5ad,.r,.R" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
       {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
-      <section className="chat-analysis" hidden={view==='chat'||view==='tutorial'} aria-label={viewLabels[panelView]}><AnalysisPanel view={panelView} onNavigate={navigateFromPanel} onDataset={(id:string)=>void selectForChat(id)}/></section>
+      {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
+      <section className="chat-analysis" hidden={view==='chat'||view==='tutorial'||view==='genomes'} aria-label={viewLabels[panelView]}><AnalysisPanel view={panelView} onNavigate={navigateFromPanel} onDataset={(id:string)=>void selectForChat(id)}/></section>
     </main>
     <dialog ref={dialog} className="model-dialog" onCancel={() => setSettings(false)}>
       <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={() => setSettings(false)}><X size={19}/></button></div>

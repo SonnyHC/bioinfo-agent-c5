@@ -165,7 +165,7 @@ test('main navigation restores legacy plan/run links and preserves chat dataset 
   assert.deepEqual(messageParts(`查看 [原结果](/workbench?run=${recordId}) 和 [环境](/?view=environments)`),[
     {text:'查看 '},{text:'原结果',href:`/?view=analysis&run=${recordId}`},{text:' 和 '},{text:'环境',href:'/?view=environments'},{text:''},
   ]);
-  for(const unsafe of ['//evil.example','/\\evil.example','/workbench/cloud','/workbench?next=https://evil.example','/?view=genomes','/?view=analysis&plan=../../secret','/?view=analysis&run=one&run=two','/api/chat','/?view=analysis#attack','https://bioinfobuddy.com.cn/?view=analysis']) assert.equal(safeAppLink(unsafe),undefined,unsafe);
+  for(const unsafe of ['//evil.example','/\\evil.example','/workbench/cloud','/workbench?next=https://evil.example','/?view=not-a-view','/?view=analysis&plan=../../secret','/?view=analysis&run=one&run=two','/api/chat','/?view=analysis#attack','https://bioinfobuddy.com.cn/?view=analysis']) assert.equal(safeAppLink(unsafe),undefined,unsafe);
   assert.deepEqual(messageParts('[unsafe](//evil.example)'),[{text:''},{text:'[unsafe](//evil.example)'},{text:''}]);
 });
 

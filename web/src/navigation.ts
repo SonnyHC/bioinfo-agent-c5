@@ -1,8 +1,8 @@
 export type AnalysisView = 'analysis' | 'skills' | 'environments' | 'history' | 'connection';
-export type MainView = 'chat' | 'tutorial' | AnalysisView;
+export type MainView = 'chat' | 'tutorial' | 'genomes' | AnalysisView;
 export const OPEN_ANALYSIS = 'bioinfobuddy-open-analysis';
 export interface AnalysisRequest { plan?: string; run?: string; dataset?: string }
-export const viewLabels: Record<MainView, string> = {chat:'AI 对话',tutorial:'使用教程',analysis:'数据与绘图',skills:'数据分析技能',environments:'分析环境',history:'运行记录',connection:'本地助手'};
+export const viewLabels: Record<MainView, string> = {chat:'AI 对话',tutorial:'使用教程',genomes:'参考基因组',analysis:'数据与绘图',skills:'数据分析技能',environments:'分析环境',history:'运行记录',connection:'本地助手'};
 const isView = (value: string | null): value is MainView => value !== null && Object.hasOwn(viewLabels, value);
 
 // Only known, same-site app destinations can become clickable model/tool links.
