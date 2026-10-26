@@ -1,17 +1,22 @@
 {
   "name": "bioinfobuddy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "浏览器本地存储的生信分析 Agent，支持 Vercel 无状态部署",
+  "description": "网站与本地助手协作的科研绘图 Agent",
   "engines": {
     "node": "^22.18.0 || >=24.2.0"
   },
   "scripts": {
-    "dev": "node scripts/web-dev.mjs",
+    "dev": "vite --config web/vite.config.ts --host 127.0.0.1 --port 5173 --strictPort",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
-    "start": "node scripts/web-dev.mjs --production",
+    "start": "vite preview --config web/vite.config.ts --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:cloud": "node scripts/web-dev.mjs",
+    "start:cloud": "node scripts/web-dev.mjs --production",
+    "companion": "node companion/server.mjs",
+    "setup:companion": "node scripts/check-companion.mjs",
+    "test:companion": "node --test tests/companion.test.mjs",
     "agent": "node scripts/agent.mjs",
     "setup:python": "node scripts/setup-python.mjs",
     "test": "node --import tsx --test tests/server.test.ts",

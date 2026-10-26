@@ -1,0 +1,2 @@
+-r tables.txt
+anndata==0.12.3

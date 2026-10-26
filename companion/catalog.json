@@ -1,0 +1,6 @@
+[
+  {"id":"tables","name":"基础科研绘图","version":"1.0.0","runtime":"python","description":"CSV、TSV、Excel；箱线图、小提琴图、散点图、直方图、柱状图和热图。","requirements":"tables.txt","extensions":[".csv",".tsv",".xlsx"]},
+  {"id":"fastq","name":"FASTQ 质量概览","version":"1.0.0","runtime":"python","description":"逐条读取 FASTQ / FASTQ.GZ，绘制读取长度或每条 read 的平均 Phred 质量；不是比对或表达定量。","requirements":"tables.txt","extensions":[".fastq",".fq",".fastq.gz",".fq.gz"]},
+  {"id":"single-cell","name":"单细胞嵌入图","version":"1.0.0","runtime":"python","description":"读取 H5AD 中已计算的二维嵌入和细胞注释，保留原表达矩阵；不自动执行聚类或归一化。","requirements":"single-cell.txt","extensions":[".h5ad"]},
+  {"id":"r-script","name":"R 脚本运行","version":"1.0.0","runtime":"r","description":"导入自己信任的 R 脚本，使用独立 renv 包环境；需电脑已安装 R。脚本按当前用户权限运行。","extensions":[".r"]}
+]

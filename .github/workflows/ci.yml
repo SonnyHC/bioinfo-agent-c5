@@ -18,9 +18,11 @@ jobs:
           python-version: '3.12'
       - run: npm ci --ignore-scripts
       - run: npm run setup:python
+      - run: .venv/bin/python -m pip install -r companion/requirements/single-cell.txt
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:cloud
+      - run: npm run test:companion
       - run: npm run test:python
       - run: npm test
       - run: npm run test:plugin

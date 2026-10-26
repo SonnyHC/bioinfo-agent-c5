@@ -1,71 +1,86 @@
 # bioinfobuddy
 
-面向郑州大学 C5 项目的生信表格分析与绘图 Agent。
+面向大学生和科研人员的 AI 辅助绘图工具，采用 **网站 + 本地助手**：在网页里选择图例、设置参数和查看结果，由用户电脑上的助手保存文件、安装分析环境并执行绘图。
 
-**默认是可部署到 Vercel 的独立网页。无需启动 DeepSeek Harness 服务。**
-网页采用 Harness 的工具调用流程：检查真实数据 → 提出方案 → 用户确认 → 执行绘图 → 核对结果。
+沿用 Harness 的工具调用流程：检查真实数据 → 提出数据转换与绘图方案 → 用户确认 → 本地执行 → 核对结果。默认入口不启动完整 DeepSeek Harness。
 
-## 使用
+## 当前功能
 
-- 首次打开配置自己的 DeepSeek API Key。默认只在当前标签会话保存，可选择在此浏览器记住。
-- 导入 CSV、TSV、XLSX，或使用合成样例。网页上传上限为 **2 MiB**，适配 Vercel 请求大小限制；最多 50,000 行、100 列，XLSX 读取第一张工作表。
-- 在对话中要求检查数据、制定绘图方案；点击返回的链接进入工作台确认并执行。
-- 支持箱线图、小提琴图、散点图、直方图、均值柱状图、热图。
-- 可导出 PNG / SVG / PDF、处理后的 CSV、参数记录、可独立执行的 Python 绘图脚本和 ZIP 复现包。
+| 输入 | 可执行的任务 | 范围 |
+| --- | --- | --- |
+| CSV / TSV / XLSX | 箱线图、小提琴图、散点图、直方图、均值柱状图、热图 | 明确字段映射、宽长表转换及缺失值处理；XLSX 读取第一张工作表 |
+| FASTQ / FQ / FASTQ.GZ / FQ.GZ | read 长度分布、每条 read 的平均 Phred+33 质量分布 | 按顺序读取前 N 条；不执行比对、表达定量或完整测序质控 |
+| H5AD | 已有嵌入的前两维散点图，按细胞注释分类着色 | 不重新计算 UMAP、不归一化、不聚类；当前不提供连续变量着色 |
+| R 脚本 | 运行用户导入并明确信任的脚本，可附加表格文件 | `.r` 是可执行代码；使用独立 renv 包环境，按当前用户权限运行 |
 
-## 本地存储与计算
+可安装的技能来自仓库内固定目录，环境分别管理。AI 通过受限工具提出已有模板支持的字段映射和参数，不生成任意代码后直接执行，也不会自动安装未知第三方技能。内置 Python 模板保留原始导入文件，将转换数据和图表写入新的结果目录；用户 R 脚本仍需自行遵守不修改原始文件的约定。
 
-| 内容 | 位置 |
-| --- | --- |
-| 原始文件、数据概要、方案、图表、运行记录、聊天记录 | 当前网站、当前浏览器的 IndexedDB |
-| 模型名称 | 当前浏览器 localStorage |
-| API Key | 默认 sessionStorage；勾选记住后为 localStorage |
-| Python 处理过程 | 一次请求的临时目录，结束后删除 |
-| 模型请求 | 同源 `/api/chat` 临时转发至官方 DeepSeek API |
+支持配置 DeepSeek、OpenAI 或通义千问的 API Key 与模型名称；选择模型时需使用对应供应商实际提供且支持工具调用的模型。真实供应商可用性仍需使用有效 Key 验证。
 
-“本地保存”指数据长期存放在浏览器中，不代表离线计算。导入、预览和绘图会把相应文件发送到本站 Python 接口；模型会收到对话、工具返回的字段概要和少量数据预览。服务器应用不保存聊天、API Key 或分析文件，也不记录请求正文。
+## 启动
 
-清除网站数据会删除本地记录；更换浏览器、设备、域名或端口不会自动同步。重要结果请下载复现包，聊天可在右上角导出 JSON。旧版项目的 `.local/` 文件没有被删除，也不会自动上传或导入新版。尚未提供跨设备同步、差异分析、富集分析、FASTQ/H5AD 或单细胞计算。
+本地助手当前以源码运行，尚未提供签名的 macOS / Windows 安装包。先安装 Node.js 22.18+（22.x）或 24.2+，以及 [uv](https://docs.astral.sh/uv/getting-started/installation/)。使用 R 技能还需要本机安装 R。
 
-## 本机预览
-
-需要 Node.js 22.18+ 或 24.2+、Python 3.12。
+在仓库根目录运行：
 
 ```bash
 npm ci --ignore-scripts
-npm run setup:python
-npm run build
-npm start
+npm run setup:companion
+npm run companion
 ```
 
-打开 <http://127.0.0.1:5173>。`npm run dev` 提供开发模式。两个本地 API 适配器与 Vercel 使用同一套处理代码，只监听本机 4319/4320；默认启动流程不读取旧 `.local/dsh`，不启动 Harness。
+保持终端运行，在网站工作台输入终端显示的配对码，连接助手后安装所需技能环境。Python 技能由 uv 创建各自的 Python 3.12 环境并安装固定依赖；首次安装需要联网。
 
-## 部署与绑定域名
+本机同时预览网页时，另开终端运行：
 
-完整操作见 [Vercel 部署说明](docs/vercel-deployment.md)。
+```bash
+npm run dev
+```
 
-1. 将此版本推送到 GitHub，在 Vercel 中导入仓库。
-2. 仓库根目录部署；`vercel.json` 已定义构建命令、静态输出和两个函数。
-3. 先验证 Vercel 预览网址的对话、绘图、刷新恢复和下载。
-4. 在项目 Settings → Domains 添加 `bioinfobuddy.com.cn`，按控制台实际给出的 DNS 值配置。
+打开 <http://127.0.0.1:5173>。默认网页预览不需要项目级 Python 环境。生产静态预览使用 `npm run build` 后运行 `npm start`。`setup:companion` 检查本机工具并提示缺失项，不代替网页中的技能环境安装。
 
-不需要额外的常驻服务器或云数据库。Vercel 和 DeepSeek 按各自账户套餐计量，部署配置本身不包含密钥。
+完整步骤、R 模板约定及排错见 [本地助手使用说明](docs/local-companion.md)。
 
-## 验证与源码
+## 文件与模型请求去向
+
+| 内容 | 保存或处理位置 |
+| --- | --- |
+| 本地助手的导入文件、方案、图表、运行记录 | 用户目录下的 `.bioinfobuddy/`，可用 `BIOINFO_COMPANION_HOME` 更改 |
+| 各技能的 Python / R 环境 | 助手数据目录的 `environments/` |
+| 聊天记录 | 当前网站、当前浏览器的 IndexedDB |
+| 模型设置 | 当前浏览器存储 |
+| API Key | 默认当前标签会话保存；用户选择记住后保存在此浏览器 |
+| 本地助手配对凭据 | 当前标签会话保存；助手重启后需重新配对 |
+| 本地模式模型请求 | 本地助手转发至所选供应商的固定官方 API 地址 |
+
+本地助手模式中，原始分析文件发往本机 `127.0.0.1:4317`。调用 AI 时，对话、工具返回的数据概要与少量预览会发送给所选模型供应商；“本地计算”不代表模型调用离线。导出的结果文件应另行备份，清除浏览器数据不会删除助手数据目录。
+
+旧版云表格模式在 `/workbench/cloud` 保留：它将 CSV / TSV / XLSX 存入浏览器，并发往本站临时 Python 接口处理，限制为 2 MiB；它不具备 FASTQ、H5AD 和 R 本地执行能力。本机使用旧云接口前运行 `npm run setup:python`，再用 `npm run dev:cloud` 或构建后的 `npm run start:cloud` 启动。两种模式的文件与记录不会自动互相迁移。
+
+## 部署交接
+
+[Vercel 部署说明](docs/vercel-deployment.md)包含仓库导入、预览地址验收和 `bioinfobuddy.com.cn` 域名配置。网站可以部署到 Vercel；每位访问者仍需在自己的电脑启动本地助手。助手不部署到 Vercel，也不需要为每位用户采购常驻计算服务器。
+
+本地构建、测试或 Git 推送完成均不代表线上已部署。本次工作不包含 Vercel 发布、DNS 修改、HTTPS 或真实模型端到端验收，具体结果见 [验证记录](docs/validation.md)。
+
+## 开发与验证
+
+Python 与助手集成测试需要可用的测试解释器。先用 `npm run setup:python` 准备项目 `.venv`，再运行：
 
 ```bash
 npm run typecheck
 npm run test:cloud
+npm run test:companion
 npm run test:python
 npm run build
 ```
 
-- `web/src/Chat.tsx`：独立对话界面。
-- `web/src/agent-loop.ts`、`agent-tools.ts`：工具循环与受限科学工具。
-- `web/src/storage.ts`、`api.ts`：浏览器存储、方案确认与结果恢复。
-- `api/chat.js`、`serverless/chat-handler.mjs`：无状态模型转发。
-- `api/analysis.py`、`python/engine.py`：无状态接口与固定 Python 绘图逻辑。
+`npm run test:python` 默认使用 `.venv`，可通过 `BIOINFO_PYTHON` 指定已安装全部测试依赖的解释器；未安装 AnnData 时 H5AD 测试会显示跳过，需要另用单细胞环境补跑。助手 HTTP 测试的解释器可用 `COMPANION_TEST_PYTHON` 指定。
 
-旧本机服务及官方 Harness 插件仍在 `src/`、`packages/dsh-plugin-bioinfo/` 中作为历史实现保留；`npm run dev:legacy` / `npm run agent` 是显式的旧模式命令，**不参与新版运行或 Vercel 部署**。原集成说明见 [Harness 集成](docs/harness-integration.md)。新版是沿用 Harness 工具设计的独立实现，不声称调用了官方 Harness 运行时。
+- `companion/`：本地服务、技能目录、环境依赖和 R 运行器。
+- `python/companion_worker.py`：本地检查、转换和绘图；基础表格复用 `python/engine.py`。
+- `web/src/companion.ts`：网页与助手的配对、请求和任务状态。
+- `web/src/Chat.tsx`、`agent-loop.ts`、`agent-tools.ts`：模型配置、对话与工具循环。
+- `api/`、`serverless/`：保留的无状态模型转发和云表格接口。
 
-比赛依据见 [比赛要求及首版范围](docs/competition-and-scope.md)，上游许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+`src/` 与 `packages/dsh-plugin-bioinfo/` 保留旧本机服务和官方 Harness 插件；`npm run dev:legacy` / `npm run agent` 是旧模式的显式命令，不参与新版默认运行。参见 [Harness 集成](docs/harness-integration.md)、[比赛要求及首版范围](docs/competition-and-scope.md)和 [第三方许可](THIRD_PARTY_NOTICES.md)。

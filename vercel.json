@@ -12,7 +12,9 @@
   },
   "rewrites": [
     { "source": "/workbench", "destination": "/index.html" },
-    { "source": "/workbench/", "destination": "/index.html" }
+    { "source": "/workbench/", "destination": "/index.html" },
+    { "source": "/workbench/cloud", "destination": "/index.html" },
+    { "source": "/workbench/cloud/", "destination": "/index.html" }
   ],
   "headers": [{ "source": "/(.*)", "headers": [
     { "key": "X-Content-Type-Options", "value": "nosniff" },

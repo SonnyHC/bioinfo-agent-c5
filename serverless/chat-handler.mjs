@@ -1,9 +1,11 @@
 // One request to the official provider; the browser owns the agent loop/state.
 export async function chatRequest(body, fetcher = fetch) {
   if (!body || typeof body !== 'object') return { status: 400, data: { error: '请求无效。' } };
-  const { apiKey, model, messages, tools } = body;
+  const { apiKey, model, messages, tools, provider = 'deepseek' } = body;
+  const endpoints = {deepseek:'https://api.deepseek.com/chat/completions',openai:'https://api.openai.com/v1/chat/completions',qwen:'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'};
+  if (!Object.hasOwn(endpoints, provider)) return {status:400,data:{error:'请选择支持的模型提供商。'}};
   if (typeof apiKey !== 'string' || !/^[\x21-\x7e]{8,512}$/.test(apiKey)) {
-    return { status: 400, data: { error: '请先配置有效的 DeepSeek API Key。' } };
+    return { status: 400, data: { error: '请先配置有效的 API Key。' } };
   }
   if (typeof model !== 'string' || !/^[a-zA-Z0-9_.:-]{1,100}$/.test(model) || !Array.isArray(messages) || !messages.length || messages.length > 100) {
     return { status: 400, data: { error: '模型或对话内容无效，请新建对话后重试。' } };
@@ -12,10 +14,16 @@ export async function chatRequest(body, fetcher = fetch) {
     return { status: 400, data: { error: '工具配置无效。' } };
   }
   try {
-    const response = await fetcher('https://api.deepseek.com/chat/completions', {
+    // Provider-specific reasoning metadata must not leak into another API's schema.
+    const transcript = messages.map(message => {
+      const {role, content, tool_calls, tool_call_id, reasoning_content} = message;
+      return {role,content,...(tool_calls ? {tool_calls} : {}),...(tool_call_id ? {tool_call_id} : {}),
+        ...(provider === 'deepseek' && reasoning_content !== undefined ? {reasoning_content} : {})};
+    });
+    const response = await fetcher(endpoints[provider], {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, tools, stream: false, max_tokens: 4096 }),
+      body: JSON.stringify({ model, messages:transcript, tools, stream: false, ...(provider==='openai'?{max_completion_tokens:4096}:{max_tokens:4096}), ...(provider==='qwen'?{enable_thinking:false}:{}) }),
       signal: AbortSignal.timeout(110000),
       redirect: 'error',
     });

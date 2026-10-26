@@ -1,0 +1,133 @@
+# 本地助手使用说明
+
+网站负责交互，本地助手负责保存文件和运行 Python / R。当前交付为源码运行版；“一键安装环境”指在助手已经启动后，点击网页中的技能安装按钮创建相应环境。
+
+## 1. 准备运行工具
+
+安装 Node.js 22.18+（22.x）或 24.2+，再安装 uv。已有 Homebrew 的 macOS 可运行：
+
+```bash
+brew install uv
+```
+
+Windows 可运行：
+
+```powershell
+winget install --id=astral-sh.uv -e
+```
+
+其他安装方式见 [uv 官方说明](https://docs.astral.sh/uv/getting-started/installation/)。安装后重新打开终端，用 `node --version`、`npm --version`、`uv --version` 确认命令可用。Python 3.12 及技能依赖由助手调用 uv 准备。
+
+只有需要执行 R 脚本时才需安装 [R](https://cran.r-project.org/)。确认 `Rscript --version` 可用；若不在 PATH 中，可用 `BIOINFO_RSCRIPT` 指定程序完整路径。Python 图例不依赖 R。
+
+## 2. 启动与配对
+
+下载或克隆仓库，在仓库根目录运行：
+
+```bash
+npm ci --ignore-scripts
+npm run setup:companion
+npm run companion
+```
+
+助手只监听 `http://127.0.0.1:4317`，终端显示八位配对码及数据目录。保持该窗口运行，在网站工作台的连接区输入配对码。
+
+配对码有效期 15 分钟且只能使用一次。重启助手后会生成新配对码，网页需要重新连接。不要把终端窗口中的配对码发给他人。助手收到未允许的网站来源或错误凭据时会拒绝请求。
+
+浏览器从 HTTPS 网站访问本机助手时可能询问本地网络访问权限，需要允许当前网站连接本机。此行为由浏览器控制，正式发布时必须在目标浏览器实测；相关机制见 [Chrome 官方说明](https://developer.chrome.com/blog/local-network-access)。
+
+默认允许正式域名 `https://bioinfobuddy.com.cn`、`https://www.bioinfobuddy.com.cn` 及本地 5173 网页。验证具体 Vercel 预览网址时，在启动助手前显式加入该网站的完整 origin（不带路径），不使用通配符：
+
+```bash
+BIOINFO_COMPANION_ORIGINS="https://your-project.vercel.app" npm run companion
+```
+
+多个 origin 用逗号分隔。Windows PowerShell 先设置 `$env:BIOINFO_COMPANION_ORIGINS = "https://your-project.vercel.app"`，再运行 `npm run companion`。仅填写自己确认的部署地址。
+
+本地开发网页在另一个终端运行：
+
+```bash
+npm run dev
+```
+
+打开 <http://127.0.0.1:5173>，再配对助手。网页服务与助手需同时保持运行。默认网页启动不需要 Python；助手技能环境由网页按钮安装。`npm run setup:companion` 仅检查 Node、uv、可选的 R，并给出缺失工具说明。
+
+## 3. 安装技能环境
+
+在工作台的“技能与环境”选择需要的技能，点击“一键安装环境”，查看任务状态与日志，成功后再导入和检查数据。
+
+| 技能 | 安装内容 |
+| --- | --- |
+| 基础科研绘图 | 独立 Python 3.12 环境，NumPy、pandas、Matplotlib、openpyxl |
+| FASTQ 质量概览 | 独立 Python 3.12 环境及绘图依赖 |
+| 单细胞嵌入图 | 独立 Python 3.12 环境，基础绘图依赖及 AnnData |
+| R 脚本运行 | 独立 renv 项目和包库；R 本身需预先安装 |
+
+首次安装需要连接 Python / R 软件源。每个技能使用独立目录，安装一个不会把另一个标记为已安装。当前目录中的依赖受仓库控制，没有任意第三方技能 URL 安装功能。R 脚本如需要额外 R 包，需由使用者在对应 renv 项目安装并记录；基础 R 示例不依赖额外绘图包。
+
+## 4. 导入、选图与执行
+
+1. 在“选图与分析”点击“导入本机文件”，选择图例。
+2. 点击“检查文件结构”，核对实际字段或文件概要。表格需核对列名，H5AD 需已有二维嵌入，R 脚本需阅读代码。
+3. 根据参数旁的说明设置字段、分组、读取数量等。可以在对话中让 AI 根据已导入数据建议转换方案。
+4. 点击“预览转换方案”，查看待确认方案中的转换步骤、行数、预览和警告。字段映射、宽表展开及明确选择的缺失值处理由本地固定代码执行。
+5. 勾选核对后点击“确认并在本机生成”；R 脚本还需单独确认信任代码。等待完成后查看图表并下载产物，之后可在“运行记录”重新打开。
+
+AI 只使用已提供的分析工具和参数。不会把未检查的数据列名当作事实，不会自行添加统计检验、显著性、归一化或删除异常值。当前表格模板支持的转换不能代表通用格式转换或任意生信工作流。
+
+内置 Python 图例输出 PNG / SVG / PDF、`processed.csv`、参数或方案记录、`manifest.json`、`analysis.py` 与依赖文件。FASTQ / H5AD 的 `analysis.py` 从同目录的处理后 CSV 重新绘图，并核对 CSV 摘要；它不是从原始 FASTQ / H5AD 重跑全部分析的脚本。这两类结果当前按文件下载，没有 ZIP。R 产物取决于脚本，运行器另存脚本副本与 renv 锁文件。
+
+## 5. 格式与科学范围
+
+| 格式 | 当前限制与解释 |
+| --- | --- |
+| CSV / TSV / XLSX | 本地导入上限 10 MiB；最多 50,000 行、100 列；XLSX 只读取首张工作表，不能依靠 Excel 公式重新计算 |
+| FASTQ / FQ 及其 `.gz` | 导入上限 2 GiB；按四行格式读取并校验，质量按 Phred+33 解释；读取数默认 10,000，范围 1–1,000,000 |
+| H5AD | 导入上限 2 GiB；从已有 `obsm` 嵌入取前两维，默认最多 50,000 个细胞，可配置 1–200,000；分类着色最多 30 类 |
+| R / r | 脚本上限 1 MiB；是代码而非数据格式；可选择一个已导入的表格作为输入 |
+
+FASTQ 和 H5AD 设定的 N 是按文件顺序截取的前缀，不是随机抽样。FASTQ 的平均 read 质量图不是逐碱基位置质量图，也不替代完整测序质控。H5AD 图仅展示已有嵌入，不能证明聚类、批次校正或细胞类型注释正确。大文件即使低于导入上限，也可能受本机内存、解析时间或任务限制影响。
+
+## 6. R 模板约定
+
+运行器向脚本提供：
+
+- `input_file`：选定的输入表格路径；未选择时为 `NULL`。
+- `output_dir`：本次运行的独立输出目录，同时作为工作目录。
+- `params`：当前版本为空列表。
+
+脚本需要把至少一张 PNG、SVG 或 PDF 写入 `output_dir`。参考 [example.R](../companion/example.R)：读取 CSV，使用前两列数值绘制散点图，输出 PNG / PDF；本机 R 支持 Cairo 时再输出 SVG。附加数据为 TSV / XLSX 时，脚本应使用相应读取方式，不能把它们直接交给 `read.csv`。
+
+renv 隔离的是 R 包依赖，**不是操作系统安全沙箱**。其项目与锁文件机制见 [renv 官方说明](https://rstudio.github.io/renv/articles/renv.html)。脚本仍具有当前用户的文件和网络权限。只导入自己编写或已审阅并信任的脚本；本程序不会把模型返回的代码自动当作 R 脚本执行。
+
+## 7. 数据目录与备份
+
+默认数据目录为用户主目录下的 `.bioinfobuddy/`。macOS / Linux 可以在启动时选择其他位置：
+
+```bash
+BIOINFO_COMPANION_HOME="/absolute/path/bioinfobuddy-data" npm run companion
+```
+
+Windows PowerShell：
+
+```powershell
+$env:BIOINFO_COMPANION_HOME = "D:\bioinfobuddy-data"
+npm run companion
+```
+
+其中 `datasets/` 保存导入的原始文件，`plans/` 保存方案，`runs/` 保存运行记录与结果，`environments/` 保存各技能环境。内置模板把转换与结果写到新文件，原始文件摘要用于运行前一致性检查；用户 R 脚本具有更广的权限，需要自行保证不覆盖输入。不要在任务执行时手动修改这些目录。
+
+停止助手后，文件仍保留；未完成的运行会在下次启动时标记为失败。网页断开连接或关闭状态轮询，不等于终止已在本机执行的任务。重要结果请从网页下载并独立备份。
+
+聊天记录保存在浏览器，模型请求会带上对话和工具返回的概要/预览并发给所选供应商。API Key 的会话保存或“记住”设置只影响浏览器存储，不会写入结果文件。
+
+## 常见问题
+
+- **连接不上**：确认助手终端仍在运行、端口 4317 未被其他程序占用、浏览器允许访问本机网络；助手重启后用新配对码连接。
+- **配对码无效**：检查八位数字、15 分钟有效期和单次使用限制；关闭助手后重新启动。
+- **环境安装失败**：先确认 `uv --version` 或 `Rscript --version` 可运行，检查任务日志中的网络或软件包错误，再重试安装。`BIOINFO_UV` 可指定 uv 完整路径。
+- **H5AD 没有可选嵌入**：文件需要已有至少二维的 `obsm` 数据；本工具当前不自动生成 UMAP。
+- **R 运行完成但无图**：核对脚本是否向 `output_dir` 写入 PNG / SVG / PDF，且输出不是符号链接。
+- **换网站后看不到聊天**：浏览器存储按网站来源隔离；本地预览、Vercel 地址和正式域名分别保存。
+
+Windows、Linux、不同浏览器以及正式 HTTPS 域名的实机验证情况，以 [验证记录](validation.md)为准。
