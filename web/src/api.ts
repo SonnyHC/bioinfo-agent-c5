@@ -8,7 +8,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const type = response.headers.get('content-type') ?? '';
   if (!type.includes('application/json')) {
-    throw new Error('无法连接本地分析服务，请确认服务已启动后重试。');
+    throw new Error('服务连接失败，请重试。');
   }
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `请求失败（${response.status}）`);

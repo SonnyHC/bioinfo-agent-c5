@@ -1,10 +1,12 @@
 {
   "name": "dsh-plugin-bioinfo",
   "version": "0.1.0",
-  "description": "C5 Bioinfo: reviewed data mappings and reproducible local plotting for DeepSeek Harness",
+  "description": "bioinfobuddy: table analysis and reproducible plotting for DeepSeek Harness",
   "type": "module",
   "private": true,
   "exports": {
+    ".": "./lib/ui-host.js",
+    "./client": "./lib/ui-client.js",
     "./tools": "./lib/tools.js",
     "./skills": "./lib/skills.js",
     "./package.json": "./package.json",
@@ -13,6 +15,13 @@
   "files": ["lib", "skills", "cordis.patch.yml", "README.md"],
   "peerDependencies": { "@deepseek-ai/cordis": "~4.0.5" },
   "engines": { "dsh": "0.2.1-rc.2" },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-sidebar", "@deepseek-ai/dsh-client-ui-conversation"]
+    }
+  },
   "dshTarget": "0.2.1-rc.2"
 }

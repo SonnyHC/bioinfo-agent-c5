@@ -24,12 +24,11 @@ const planSchema = z.object({
 const artifacts = ['chart.png', 'chart.svg', 'chart.pdf', 'processed.csv', 'analysis.py', 'manifest.json', 'requirements.txt', 'bundle.zip'];
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 
-export async function createApp(options: { dataDir?: string; port?: number; token?: string } = {}) {
+export async function createApp(options: { dataDir?: string; clientDir?: string; port?: number; token?: string; harnessFailed?: () => boolean } = {}) {
   const dataDir = options.dataDir ?? path.join(root, '.local');
   const port = options.port ?? 4318;
   const token = options.token ?? randomBytes(32).toString('hex');
   for (const sub of ['datasets', 'plans', 'runs', 'uploads']) await fs.mkdir(path.join(dataDir, sub), { recursive: true, mode: 0o700 });
-  await fs.writeFile(path.join(dataDir, 'connection.json'), JSON.stringify({ baseUrl: `http://127.0.0.1:${port}`, token }), { mode: 0o600 });
   const read = async (folder: string, id: string): Promise<RecordData> => {
     if (!idSchema.safeParse(id).success) throw new ApiError(400, '无效的记录编号。');
     try { return JSON.parse(await fs.readFile(path.join(dataDir, folder, `${id}.json`), 'utf8')); }
@@ -58,7 +57,7 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
   };
   const importFile = async (buffer: Buffer, name: string) => {
     const ext = path.extname(name).toLowerCase();
-    if (!['.csv', '.tsv', '.xlsx'].includes(ext)) throw new ApiError(400, '首版支持 CSV、TSV 和 XLSX；FASTQ、H5AD 和 R 脚本尚未支持。');
+    if (!['.csv', '.tsv', '.xlsx'].includes(ext)) throw new ApiError(400, '请选择 CSV、TSV 或 XLSX 文件。');
     if (buffer.length === 0 || buffer.length > 10 * 1024 * 1024) throw new ApiError(400, '请选择非空且不超过 10 MB 的文件。');
     const id = randomUUID();
     const inputPath = `${id}${ext}`;
@@ -98,18 +97,23 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
     try { await worker(['doctor']); pythonReady = true; } catch {}
     res.json({ version: '0.1.0', pythonReady, harness: { url: '/api/harness/open', status: 'not_checked' }, mode: 'local', maxUploadMB: 10 });
   });
-  app.get('/api/harness/open', async (_req, res) => {
+  const openHarness = async (_req: Request, res: Response) => {
     if (res.locals.agent) throw new ApiError(403, '模型工具不能读取 Harness 浏览器登录信息。');
     try {
+      if (options.harnessFailed?.()) throw new Error('Harness stopped');
       const connection = JSON.parse(await fs.readFile(path.join(dataDir, 'harness.json'), 'utf8'));
       const target = new URL(connection.bootstrapUrl);
       const port = Number(target.port);
       if (target.protocol !== 'http:' || target.hostname !== '127.0.0.1' || target.username || target.password || target.pathname !== '/' || port < 1024 || port > 65535 || !target.searchParams.get('token')) throw new Error('Invalid bootstrap URL');
       res.redirect(302, target.href);
     } catch {
-      res.status(503).type('text').send('请先在项目目录的另一个终端运行 npm run agent，等待出现 dsh web 地址后，再返回工作台打开 Agent。');
+      const failed = options.harnessFailed?.() ?? false;
+      if (!failed) res.setHeader('Refresh', '2');
+      res.status(503).type('html').send(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bioinfobuddy</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fafafa;color:#202124;font:15px/1.7 system-ui,sans-serif}main{padding:32px;text-align:center}h1{font-size:23px;font-weight:550;margin:0 0 8px}p{color:#737373}a{color:inherit;text-underline-offset:4px}</style><main><h1>${failed ? '启动失败' : '正在启动 bioinfobuddy'}</h1><p>${failed ? '请重新启动本地服务后重试。' : '正在准备对话与数据工具…'}</p><a href="/workbench">打开数据与绘图</a></main></html>`);
     }
-  });
+  };
+  app.get('/', openHarness);
+  app.get('/api/harness/open', openHarness);
   app.get('/api/datasets', async (_req, res) => res.json({ datasets: (await list('datasets')).map(publicDataset) }));
   app.get('/api/datasets/:id', async (req, res) => res.json(publicDataset(await read('datasets', req.params.id))));
   app.post('/api/datasets', upload.single('file'), async (req, res) => {
@@ -165,7 +169,7 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
       manifest.planId = plan.id;
       manifest.originalFilename = dataset.name;
       manifest.approvedAt = plan.approvedAt;
-      manifest.tool = 'bioinfo-agent-c5@0.1.0';
+      manifest.tool = 'bioinfobuddy@0.1.0';
       await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
       await new Promise<void>((resolve, reject) => {
         const output = createWriteStream(path.join(outputDir, 'bundle.zip'));
@@ -198,11 +202,11 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
     res.sendFile(file, { dotfiles: 'allow' });
   });
   app.use('/api', (_req, _res, next) => next(new ApiError(404, '接口不存在。')));
-  const clientDir = path.join(root, 'dist/client');
-  app.use(express.static(clientDir));
-  app.get('/', (_req, res) => {
+  const clientDir = options.clientDir ?? path.join(root, 'dist/client');
+  app.use('/workbench', express.static(clientDir, { index: false, redirect: false }));
+  app.get('/workbench', (_req, res) => {
     if (existsSync(path.join(clientDir, 'index.html'))) res.sendFile(path.join(clientDir, 'index.html'));
-    else res.status(503).type('text').send('请先运行 npm run build，或在另一个终端运行 npm run dev:web。');
+    else res.status(503).type('text').send('数据与绘图页面尚未就绪。');
   });
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof multer.MulterError) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? '文件不能超过 10 MB。' : '请一次上传一个数据文件。' });

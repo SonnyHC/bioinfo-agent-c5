@@ -1,4 +1,4 @@
-# 图研 · BioWorkbench
+# bioinfobuddy
 
 面向郑州大学 C5 项目的本地科研数据适配与绘图 Agent 原型。
 
@@ -28,7 +28,9 @@ npm run build
 npm start
 ```
 
-打开 <http://127.0.0.1:4318>，点击「宽表样例」，选择箱线图，配置 `Control`、`Treatment` 等实际列名，预览并确认，再生成图片和复现包。样例均为合成数据，不代表真实实验。
+打开 <http://127.0.0.1:4318>，进入官方 dsh 对话界面。首次进入先配置 DeepSeek API Key；后续可在「设置 → 模型」修改。`npm start` 会同时启动后端和 Harness，关闭进程时一并退出。
+
+从侧栏「数据与绘图」打开工具页，点击「宽表样例」，选择箱线图，配置 `Control`、`Treatment` 等实际列名，预览并确认，再生成图片和复现包。也可直接打开 <http://127.0.0.1:4318/workbench>。样例均为合成数据。
 
 若系统默认 Python 不在支持范围，先用合适版本创建虚拟环境：
 
@@ -41,13 +43,7 @@ Windows 使用 `.venv\Scripts\python.exe`。安装脚本可用 `BIOINFO_SETUP_PY
 
 ## 连接 DeepSeek Harness
 
-保持工作台运行，在另一个终端执行：
-
-```bash
-npm run agent
-```
-
-启动器使用官方 `@deepseek-ai/dsh@0.2.1-rc.2`，安装本仓库的 C5 插件到独立 `.local/dsh/`。在 Harness 自带设置页配置自己的模型与 API key，在 C5 预设中开始对话。详细步骤见 [Harness 集成](docs/harness-integration.md)。
+`npm start` 自动使用官方 `@deepseek-ai/dsh@0.2.1-rc.2`，安装本仓库的 C5 插件到独立 `.local/dsh/`，并以「bioinfobuddy」为默认预设。Harness 使用自动分配的本机端口，始终通过 4318 主入口进入即可。详细配置和独立调试命令见 [Harness 集成](docs/harness-integration.md)。
 
 建议首先上传合成样例，再输入：
 
@@ -58,8 +54,8 @@ npm run agent
 ## 开发与测试
 
 ```bash
-npm run dev       # 后端 4318
-npm run dev:web   # 前端 5173，代理本地 API
+npm run dev       # 后端 4318 + Harness
+npm run dev:web   # 绘图页 http://127.0.0.1:5173/workbench/，代理本地 API
 npm run typecheck
 npm run test:python
 npm test
@@ -76,4 +72,4 @@ npm run build
 
 报名截止 **2026 年 11 月 4 日**，由学院统一报送。C5 方向匹配与人数差异见 [比赛要求及首版范围](docs/competition-and-scope.md)；以学校后续要求为准。
 
-参考 [BioDSH desktop-tauri-v1.0.0-preview.1](https://github.com/sagirimo/BioDSH/releases/tag/desktop-tauri-v1.0.0-preview.1) 的 Harness 插件化思路。第一版独立实现自己的界面和固定数据工具，不复制其品牌、安装包或完整第三方技能库。上游及许可说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本项目暂为私有开发仓库，尚未对自有代码指定开源许可证。
+参考 [BioDSH desktop-tauri-v1.0.0-preview.1](https://github.com/sagirimo/BioDSH/releases/tag/desktop-tauri-v1.0.0-preview.1) 的 Harness 插件化思路，直接使用官方 dsh 对话界面，独立实现数据与绘图工具页及 C5 插件。上游及许可说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本项目暂为私有开发仓库，尚未对自有代码指定开源许可证。

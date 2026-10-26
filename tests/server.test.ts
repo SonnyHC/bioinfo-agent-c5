@@ -57,13 +57,45 @@ test('local workflow preserves input, requires human approval, and exports real 
   assert.equal((await call('/api/datasets', undefined, { 'X-Bioinfo-Token': 'incorrect' })).status, 401);
   const beforeAgent = await fetch(base + '/api/harness/open', { redirect: 'manual' });
   assert.equal(beforeAgent.status, 503);
+  const loading = await fetch(base + '/', { redirect: 'manual' });
+  assert.equal(loading.status, 503);
+  assert.equal(loading.headers.get('refresh'), '2');
+  assert.match(await loading.text(), /正在启动 bioinfobuddy/);
   await fs.writeFile(path.join(dataDir, 'harness.json'), JSON.stringify({bootstrapUrl:'https://unrelated.example/?token=test'}));
   assert.equal((await fetch(base + '/api/harness/open', {redirect:'manual'})).status, 503);
   await fs.writeFile(path.join(dataDir, 'harness.json'), JSON.stringify({bootstrapUrl:'http://127.0.0.1:3080/?token=test-local-only'}));
   const agentLink = await fetch(base + '/api/harness/open', {redirect:'manual'});
   assert.equal(agentLink.status, 302);
   assert.equal(agentLink.headers.get('location'), 'http://127.0.0.1:3080/?token=test-local-only');
+  assert.equal((await fetch(base + '/', {redirect:'manual'})).headers.get('location'), agentLink.headers.get('location'));
   assert.equal((await call('/api/harness/open', undefined, {'X-Bioinfo-Token':token})).status,403);
+  assert.equal((await call('/', undefined, {'X-Bioinfo-Token':token})).status,403);
+});
+
+test('plotting deep links and assets stay available under /workbench', async (t) => {
+  const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'c5-pages-'));
+  const clientDir = path.join(testDir, 'client');
+  await fs.mkdir(path.join(clientDir, 'assets'), {recursive:true});
+  await fs.writeFile(path.join(clientDir, 'index.html'), '<html>plotting-page</html>');
+  await fs.writeFile(path.join(clientDir, 'assets/app.js'), 'export const plot = true;');
+  const {app} = await createApp({dataDir:path.join(testDir, 'data'),clientDir,harnessFailed:()=>true});
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  t.after(async () => {await new Promise<void>(resolve=>server.close(()=>resolve()));await fs.rm(testDir,{recursive:true,force:true});});
+  for (const route of ['/workbench', '/workbench/', '/workbench?plan=example', '/workbench?run=example']) {
+    const response = await fetch(base + route);
+    assert.equal(response.status,200,route);
+    assert.equal(await response.text(), '<html>plotting-page</html>');
+  }
+  assert.equal((await fetch(base + '/workbench/assets/app.js')).status,200);
+  assert.equal((await fetch(base + '/assets/app.js')).status,404);
+  const failed = await fetch(base + '/');
+  assert.equal(failed.status,503);
+  assert.equal(failed.headers.get('refresh'),null);
+  assert.match(await failed.text(), /启动失败/);
 });
 
 test('file uploads reject invalid content and preserve quoted cells', async (t) => {

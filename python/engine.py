@@ -136,7 +136,7 @@ def read_table(input_path: str | Path) -> dict[str, Any]:
             workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=False, keep_links=False)
             try:
                 sheet = workbook.worksheets[0]
-                notices.append(f"Excel 仅读取第一个工作表：{sheet.title}；其余工作表不参与分析。")
+                notices.append(f"工作表：{sheet.title}（第一个工作表）。")
                 if sheet.max_row and sheet.max_row > MAX_ROWS + 1:
                     raise DataError(f"Excel 工作表超过 {MAX_ROWS} 行限制（含格式占用的行）；请导出干净数据表。")
                 if sheet.max_column and sheet.max_column > MAX_COLUMNS:
@@ -163,7 +163,7 @@ def read_table(input_path: str | Path) -> dict[str, Any]:
         except Exception as exc:
             raise DataError(f"无法读取 XLSX：{exc}") from exc
     else:
-        raise DataError("首版只接受 .csv、.tsv 和 .xlsx；FASTQ、H5AD、XLS 与 R 脚本需专用分析流程。")
+        raise DataError("请选择 CSV、TSV 或 XLSX 文件。")
 
     if not rows or not rows[0] or all(missing(value) for value in rows[0]):
         raise DataError("缺少表头；第一行必须是非空且不重复的列名。")
@@ -180,7 +180,7 @@ def read_table(input_path: str | Path) -> dict[str, Any]:
     values: list[dict[str, Any]] = []
     for row_number, row in enumerate(rows[1:], start=2):
         if len(row) != len(header):
-            raise DataError(f"第 {row_number} 行有 {len(row)} 列，表头有 {len(header)} 列；不自动补齐或截断。")
+            raise DataError(f"第 {row_number} 行有 {len(row)} 列，表头有 {len(header)} 列；请统一列数。")
         if [str(value) if value is not None else "" for value in row] == header:
             raise DataError(f"第 {row_number} 行重复了表头；请确认是否拼接了多个数据表。")
         values.append({column: _validate_cell(value, row_number, column) for column, value in zip(header, row)})
@@ -204,14 +204,14 @@ def inspect_table(table: dict[str, Any]) -> dict[str, Any]:
                 is_number = False
         kind = "number" if present and is_number else "string"
         if present and 0 < numeric_count < len(present):
-            notices.append(f"{name} 同时包含数值和文本；用于数值绘图前需明确整理。")
+            notices.append(f"{name} 包含数值和文本。")
         columns.append({"name": name, "type": kind, "missing": len(table["values"]) - len(present)})
     # Preserve source values: a numeric-looking sample identifier such as 001
     # must not become 1.0 in the original-data preview.
     preview = [dict(row) for row in table["values"][:10]]
     blank_count = sum(column["missing"] for column in columns)
     if blank_count:
-        notices.append(f"发现 {blank_count} 个空单元格；绘图前需要明确缺失值策略。")
+        notices.append(f"{blank_count} 个空单元格。")
     return {"rows": len(table["values"]), "columns": columns, "preview": preview, "warnings": notices, "sha256": table["sha256"]}
 
 
@@ -272,7 +272,7 @@ def validate_config(config: Any, table: dict[str, Any]) -> dict[str, Any]:
         if not value_columns:
             raise DataError("热图需要通过 valueColumns 指定数值矩阵列。")
         if len(value_columns) > MAX_HEATMAP_COLUMNS:
-            raise DataError(f"热图最多支持 {MAX_HEATMAP_COLUMNS} 列；请先选择更小矩阵，不会自动截断。")
+            raise DataError(f"热图最多支持 {MAX_HEATMAP_COLUMNS} 列；请减少所选列。")
         if normalized["x"] in value_columns:
             raise DataError("热图行标签列不能同时作为数值矩阵列。")
         if "row_label" in value_columns:
@@ -295,7 +295,7 @@ def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             return True
         location = f"原表第 {index + 2} 行{detail}，缺失列：{', '.join(absent)}"
         if config["missing"] == "error":
-            raise DataError(f"{location}。请补充数据，或明确选择 drop 后预览删除影响。")
+            raise DataError(f"{location}。请补充数据，或选择排除缺失值后预览。")
         dropped.append({"sourceRow": index + 2, "columns": absent, "detail": detail})
         return False
 
@@ -305,13 +305,13 @@ def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             for index, row in enumerate(source_rows):
                 if keep([name], row, index, f"（展开列 {name}）"):
                     output.append({"group": name, "value": numeric(row[name], f"第 {index + 2} 行 {name}")})
-        steps.append(f"选择 {len(config['valueColumns'])} 个数值列，按列顺序将宽表展开为 group/value 长表；分组名称来自原列名。")
+        steps.append(f"将 {len(config['valueColumns'])} 个数值列展开为 group/value 长表，以列名分组。")
     elif chart in {"box", "violin", "bar"}:
         columns = ["group", "value"]
         for index, row in enumerate(source_rows):
             if keep([config["group"], config["y"]], row, index):
                 output.append({"group": str(row[config["group"]]), "value": numeric(row[config["y"]], f"第 {index + 2} 行 {config['y']}")})
-        steps.append(f"映射 {config['group']} → group，{config['y']} → value；分组名称保持原样。")
+        steps.append(f"映射 {config['group']} → group，{config['y']} → value。")
     elif chart in {"scatter", "histogram"}:
         columns = (["x", "y"] if chart == "scatter" else ["value"]) + (["group"] if config["group"] else [])
         required = ([config["x"], config["y"]] if chart == "scatter" else [config["y"]]) + ([config["group"]] if config["group"] else [])
@@ -321,7 +321,7 @@ def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                 if config["group"]:
                     item["group"] = str(row[config["group"]])
                 output.append(item)
-        steps.append("按所选列映射数值与可选分组，保持原始行顺序。")
+        steps.append("按所选列映射数值与分组，按原顺序排列。")
     else:
         columns = ["row_label", *config["valueColumns"]]
         required = [*config["valueColumns"], *([config["x"]] if config["x"] else [])]
@@ -331,21 +331,21 @@ def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
                 item.update({name: numeric(row[name], f"第 {index + 2} 行 {name}") for name in config["valueColumns"]})
                 output.append(item)
         if len(output) > MAX_HEATMAP_ROWS:
-            raise DataError(f"热图有 {len(output)} 行，首版最多支持 {MAX_HEATMAP_ROWS} 行；请先选择目标行，不会自动抽样。")
-        steps.append("使用所选数值列构成矩阵；保留行列顺序，不执行归一化、聚类或统计检验。")
+            raise DataError(f"热图有 {len(output)} 行，最多支持 {MAX_HEATMAP_ROWS} 行；请减少数据行。")
+        steps.append("使用所选数值列构成矩阵，按原行列顺序绘制。")
     if not output:
         raise DataError("处理后没有可绘图的数据；请检查字段与缺失值策略。")
     if len(output) > 100_000:
-        raise DataError("展开后超过 100000 个观测；请减少选取的数值列，不会自动抽样。")
+        raise DataError("展开后超过 100000 个观测；请减少所选数值列。")
     if dropped:
         unit = "展开后的观测" if config["layout"] == "wide" and chart != "heatmap" else "数据行"
-        steps.append(f"用户选择 missing=drop，排除 {len(dropped)} 个{unit}；逐项来源记录在 manifest.json 的 exclusions。")
-        notices.append(f"已按明确选择排除 {len(dropped)} 个{unit}，原始文件保持不变。")
+        steps.append(f"排除含缺失值的 {len(dropped)} 个{unit}。")
+        notices.append(f"已排除 {len(dropped)} 个{unit}。")
     else:
-        steps.append("未删除、填补或归一化任何观测。")
+        steps.append(f"保留全部 {len(output)} 个观测。")
     groups = Counter(str(row["group"]) for row in output if "group" in row)
     if len(groups) > MAX_GROUPS:
-        raise DataError(f"有 {len(groups)} 个分组，首版绘图最多支持 {MAX_GROUPS} 组；请先选择需要的分组。")
+        raise DataError(f"有 {len(groups)} 个分组，最多支持 {MAX_GROUPS} 组；请减少分组。")
     if any(len(name) > 80 for name in groups):
         raise DataError("分组标签超过 80 字符；请使用更短且可辨认的分组名称。")
     if chart == "violin":
@@ -353,13 +353,13 @@ def prepare(table: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
             values = [row["value"] for row in output if row["group"] == name]
             if count < 2 or len(set(values)) < 2:
                 raise DataError(f"小提琴图的 {name!r} 组至少需要 2 个非恒定数值；请改用箱线图或散点展示。")
-        steps.append("小提琴密度采用 Matplotlib Gaussian KDE（Scott 带宽）；显示全部原始观测，不进行显著性检验。")
+        steps.append("小提琴密度采用 Gaussian KDE（Scott 带宽），叠加全部观测值。")
     if chart == "bar":
-        steps.append("柱高为各组算术均值；叠加全部原始观测，不附加误差线或显著性标记，数值轴包含零。")
+        steps.append("柱高为各组算术均值，叠加全部观测值，数值轴包含零。")
     if chart == "box":
-        steps.append("箱体为第 25/50/75 百分位，须线采用 1.5×IQR；叠加全部原始观测，不进行显著性检验。")
+        steps.append("箱体为第 25/50/75 百分位，须线为 1.5×IQR，叠加全部观测值。")
     if chart == "histogram":
-        steps.append("所有分组使用相同的 20 个等宽区间；区间边界写入 manifest.json。")
+        steps.append("各组使用相同的 20 个等宽区间。")
     return {"data": output, "config": config, "preview": output[:10], "outputColumns": columns, "inputRows": len(source_rows), "outputRows": len(output), "droppedRows": len(dropped), "exclusions": dropped, "steps": steps, "warnings": notices, "groups": dict(groups)}
 
 

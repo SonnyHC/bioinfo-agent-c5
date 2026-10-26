@@ -3,10 +3,11 @@ import type { ChangeEvent, DragEvent, ReactNode } from 'react';
 import {
   AlertTriangle, ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3,
   BookOpen, Check, CheckCircle2, ChevronRight, CircleHelp, Database, Dna,
-  ExternalLink, FileCode2, FileSpreadsheet, FlaskConical, History, Laptop,
+  FileCode2, FileSpreadsheet, FlaskConical, History, Laptop,
   Layers, LoaderCircle, Play, RefreshCw, Settings2, Table2, Upload, Workflow, X,
 } from 'lucide-react';
 import { api, post } from './api';
+import { formatAnalysisText } from './analysis-text';
 import type { ChartKind, Dataset, DataRow, Plan, PlotConfig, Run, ServiceStatus } from './types';
 
 /* Working brief: researchers move from an experimental table to an inspectable figure.
@@ -25,7 +26,7 @@ const charts: { id: ChartKind; name: string; en: string; description: string }[]
   { id: 'scatter', name: '散点图', en: 'Scatter plot', description: '查看两个数值变量的关系' },
   { id: 'histogram', name: '直方图', en: 'Histogram', description: '查看单个数值变量的分布' },
   { id: 'bar', name: '柱状图', en: 'Bar plot', description: '比较组均值，并显示样本点' },
-  { id: 'heatmap', name: '热图', en: 'Heatmap', description: '查看数值矩阵，不自动标准化' },
+  { id: 'heatmap', name: '热图', en: 'Heatmap', description: '查看数值矩阵' },
 ];
 
 const defaultConfig: PlotConfig = {
@@ -124,7 +125,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [reviewed, setReviewed] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [dialog, setDialog] = useState<'agent' | 'help' | null>(null);
+  const [dialog, setDialog] = useState<'help' | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -136,7 +137,28 @@ export default function App() {
         api<ServiceStatus>('/status'), api<{datasets: Dataset[]}>('/datasets'), api<{runs: Run[]}>('/runs'), api<{plans: Plan[]}>('/plans'),
       ]);
       setStatus(service); setDatasets(data.datasets); setRuns(history.runs); setPlans(proposals.plans);
-      if (data.datasets.length) {
+      const search = new URLSearchParams(window.location.search);
+      const runId = search.get('run');
+      const planId = search.get('plan');
+      if (runId) {
+        const linkedRun = await api<Run>(`/runs/${encodeURIComponent(runId)}`);
+        const [sourcePlan, sourceData] = await Promise.all([
+          api<Plan>(`/plans/${linkedRun.planId}`), api<Dataset>(`/datasets/${linkedRun.datasetId}`),
+        ]);
+        if (sourcePlan.datasetId !== sourceData.id || linkedRun.datasetId !== sourceData.id || linkedRun.planId !== sourcePlan.id) {
+          throw new Error('运行记录与方案不匹配，请重新选择记录。');
+        }
+        applyPlan(sourcePlan, sourceData);
+        setRun(linkedRun);
+        setRuns(previous => [linkedRun, ...previous.filter(item => item.id !== linkedRun.id)]);
+        setTab('figure');
+      } else if (planId) {
+        const linkedPlan = await api<Plan>(`/plans/${encodeURIComponent(planId)}`);
+        const sourceData = await api<Dataset>(`/datasets/${linkedPlan.datasetId}`);
+        if (linkedPlan.datasetId !== sourceData.id) throw new Error('方案与数据不匹配，请重新选择方案。');
+        applyPlan(linkedPlan, sourceData);
+        setTab('plan');
+      } else if (data.datasets.length) {
         setDataset(data.datasets[0]); setConfig(configFor(data.datasets[0]));
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : '加载失败，请重试。'); }
@@ -182,7 +204,7 @@ export default function App() {
   }
 
   async function upload(file: File) {
-    if (!/\.(csv|tsv|xlsx)$/i.test(file.name)) { setError('首版支持 CSV、TSV 和 Excel（.xlsx）文件。FASTQ、R 脚本和 h5ad 尚未接入。'); return; }
+    if (!/\.(csv|tsv|xlsx)$/i.test(file.name)) { setError('请选择 CSV、TSV 或 XLSX 文件。'); return; }
     if (file.size > (status?.maxUploadMB ?? 10)*1024*1024) { setError(`文件超过 ${status?.maxUploadMB ?? 10} MB，请先截取需要分析的表格。`); return; }
     const form = new FormData(); form.append('file',file);
     const result = await perform('正在检查数据结构', () => api<Dataset>('/datasets',{method:'POST',body:form}));
@@ -205,7 +227,7 @@ export default function App() {
   }
 
   async function refreshRecords() {
-    await perform('正在同步数据、方案与运行记录',async () => {
+    await perform('正在刷新记录',async () => {
       const [data,history,proposals] = await Promise.all([
         api<{datasets: Dataset[]}>('/datasets'), api<{runs: Run[]}>('/runs'), api<{plans: Plan[]}>('/plans'),
       ]);
@@ -236,12 +258,12 @@ export default function App() {
   }
 
   async function loadRun(next: Run) {
-    const result = await perform('正在读取历史结果的数据与参数',async () => {
+    const result = await perform('正在读取结果',async () => {
       const [data,sourcePlan] = await Promise.all([
         api<Dataset>(`/datasets/${next.datasetId}`), api<Plan>(`/plans/${next.planId}`),
       ]);
       if (sourcePlan.datasetId !== data.id || next.datasetId !== data.id || next.planId !== sourcePlan.id) {
-        throw new Error('历史结果的数据与方案记录不一致，请检查运行记录。');
+        throw new Error('运行记录与方案不匹配，请重新选择记录。');
       }
       return {data,sourcePlan};
     });
@@ -251,7 +273,7 @@ export default function App() {
 
   async function executePlan() {
     if (!plan || !reviewed) return;
-    const result = await perform('正在本地生成图表与复现材料',async () => {
+    const result = await perform('正在生成图表',async () => {
       const approved = await post<Plan>(`/plans/${plan.id}/approve`);
       setPlan(approved);
       return post<Run>(`/plans/${plan.id}/run`);
@@ -271,9 +293,9 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar">
-      <a className="brand" href="/" aria-label="图研工作台首页"><span className="brand-symbol"><Dna size={23} strokeWidth={1.65}/></span><span className="brand-name">图研<span className="brand-en">BioWorkbench</span></span></a>
-      <div className="project-name"><span className="header-divider"/><FlaskConical size={16}/><span>C5 科研工作台</span><span className="preview-tag">预览版</span></div>
-      <div className="topbar-actions"><span className={`service-state ${status?.pythonReady ? 'ready' : ''}`}><span className="status-dot"/>{loading ? '连接中' : status?.pythonReady ? '本地引擎就绪' : '环境待检查'}</span><button className="icon-button help-button" title="使用指南" aria-label="打开使用指南" onClick={() => setDialog('help')}><CircleHelp size={19}/></button><button className="button agent-button" onClick={() => setDialog('agent')}><Workflow size={16}/><span>打开 Agent</span><ArrowUpRight size={15}/></button></div>
+      <a className="brand" href="/" aria-label="返回对话"><span className="brand-symbol"><Dna size={23} strokeWidth={1.65}/></span><span className="brand-name">bioinfobuddy</span></a>
+      <div className="project-name"><span className="header-divider"/><FlaskConical size={16}/><span>绘图工具</span></div>
+      <div className="topbar-actions"><span className={`service-state ${status?.pythonReady ? 'ready' : ''}`}><span className="status-dot"/>{loading ? '连接中' : status?.pythonReady ? '绘图就绪' : '待连接'}</span><button className="icon-button help-button" title="使用指南" aria-label="打开使用指南" onClick={() => setDialog('help')}><CircleHelp size={19}/></button><a className="button agent-button" href="/"><Workflow size={16}/><span>返回对话</span><ArrowUpRight size={15}/></a></div>
     </header>
 
     <div className="workspace">
@@ -294,52 +316,50 @@ export default function App() {
         </section>
         <section className="side-section templates-section"><div className="section-heading"><h2><BarChart3 size={15}/>图表模板</h2><span className="counter">06</span></div>
           <div className="template-grid">{charts.map(chart => <button key={chart.id} className={`template-option ${config.chart === chart.id ? 'active' : ''}`} onClick={() => selectChart(chart.id)} disabled={isBusy} aria-pressed={config.chart === chart.id} title={chart.description}><ChartGlyph kind={chart.id}/><span>{chart.name}</span>{config.chart === chart.id && <Check size={11} className="template-check"/>}</button>)}</div>
-          <p className="side-footnote">缩略图为示意，结果根据你的数据生成。</p>
         </section>
-        <div className="sidebar-bottom"><span className="small-mark"><Dna size={15}/>BIOINFO C5</span><span>v{status?.version ?? '0.1.0'}</span></div>
+        <div className="sidebar-bottom"><span className="small-mark"><Dna size={15}/>BIOINFOBUDDY</span><span>v{status?.version ?? '0.1.0'}</span></div>
       </aside>
 
       <main className="main-panel" id="main">
-        <div className="workspace-heading"><div><div className="breadcrumb">科研分析 <ChevronRight size={12}/> 本地绘图</div><h1>{dataset ? dataset.name : '从一份数据开始'}<span className="file-label">{dataset ? dataset.name.split('.').pop()?.toUpperCase() : 'NEW ANALYSIS'}</span></h1><p>{dataset ? <>{dataset.rows.toLocaleString()} 行数据<span className="dot-separator">·</span>{dataset.columns.length} 个字段<span className="dot-separator">·</span>原始文件保留</> : '检查数据，确认转换，再生成可复现的科研图表。'}</p></div><span className="workspace-number">01<span>/ WORKBENCH</span></span></div>
+        <div className="workspace-heading"><div><div className="breadcrumb">科研分析 <ChevronRight size={12}/> 本地绘图</div><h1>{dataset ? dataset.name : '从一份数据开始'}<span className="file-label">{dataset ? dataset.name.split('.').pop()?.toUpperCase() : 'NEW ANALYSIS'}</span></h1><p>{dataset ? <>{dataset.rows.toLocaleString()} 行数据<span className="dot-separator">·</span>{dataset.columns.length} 个字段</> : '导入数据并选择图表。'}</p></div><span className="workspace-number">01<span>/ WORKBENCH</span></span></div>
         <div className="workflow-strip" aria-label="分析流程">{['导入数据','确认字段','检查方案','生成与导出'].map((label,index) => <div key={label} className={`workflow-step ${index <= chartStep ? 'reached' : ''} ${index === chartStep ? 'current' : ''}`}><span className="step-number">{index < chartStep ? <Check size={12}/> : `0${index+1}`}</span><span>{label}</span>{index < 3 && <ChevronRight className="step-arrow" size={13}/>}</div>)}</div>
-        {error && <div className="error-banner" role="alert"><AlertTriangle size={17}/><span>{error}</span><button className="icon-button" onClick={() => setError('')} aria-label="关闭错误提示"><X size={16}/></button></div>}
-        {status && !status.pythonReady && <div className="engine-warning"><AlertTriangle size={15}/><span>Python 绘图环境尚未就绪。请先在项目目录运行 <code>npm run setup:python</code>，再刷新。</span><button className="text-button" onClick={() => void initialize()} disabled={isBusy}><RefreshCw size={13}/>重试</button></div>}
-        <nav className="view-tabs" aria-label="工作区视图">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)} aria-current={tab === item.id ? 'page' : undefined}><item.icon size={15}/>{item.label}{item.id === 'plan' && plan && <span className="tab-dot"/>}{item.id === 'history' && runs.length > 0 && <span className="tab-counter">{runs.length}</span>}</button>)}<button className="refresh-records" onClick={() => void refreshRecords()} title="刷新数据、Agent 方案和运行记录" aria-label="刷新数据、Agent 方案和运行记录" disabled={isBusy}><RefreshCw size={14}/></button></nav>
+        {error && <div className="error-banner" role="alert"><AlertTriangle size={17}/><span>{formatAnalysisText(error)}</span><button className="icon-button" onClick={() => setError('')} aria-label="关闭错误提示"><X size={16}/></button></div>}
+        {status && !status.pythonReady && <div className="engine-warning"><AlertTriangle size={15}/><span>绘图服务尚未就绪，请重试。</span><button className="text-button" onClick={() => void initialize()} disabled={isBusy}><RefreshCw size={13}/>重试</button></div>}
+        <nav className="view-tabs" aria-label="工作区视图">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)} aria-current={tab === item.id ? 'page' : undefined}><item.icon size={15}/>{item.label}{item.id === 'plan' && plan && <span className="tab-dot"/>}{item.id === 'history' && runs.length > 0 && <span className="tab-counter">{runs.length}</span>}</button>)}<button className="refresh-records" onClick={() => void refreshRecords()} title="刷新记录" aria-label="刷新记录" disabled={isBusy}><RefreshCw size={14}/></button></nav>
 
         <div className="work-area">
-          {loading ? <div className="empty-state"><LoaderCircle className="spinning" size={28}/><h2>连接本地工作台</h2><p>正在读取数据文件和运行记录。</p></div> : !status ? <div className="empty-state"><Laptop size={34}/><h2>本地服务尚未连接</h2><p>启动服务后，点击重新连接继续。</p><button className="button primary" onClick={() => void initialize()}><RefreshCw size={15}/>重新连接</button></div> : <>
+          {loading ? <div className="empty-state"><LoaderCircle className="spinning" size={28}/><h2>正在加载</h2><p>读取数据与运行记录。</p></div> : !status ? <div className="empty-state"><Laptop size={34}/><h2>服务连接失败</h2><p>请重新连接。</p><button className="button primary" onClick={() => void initialize()}><RefreshCw size={15}/>重新连接</button></div> : <>
             {tab === 'data' && (dataset ? <>
-              <div className="section-toolbar"><div><h2>原始数据</h2><span>预览不会修改源文件</span></div><span className={`inline-status ${missingCount ? 'attention' : ''}`}>{missingCount ? <AlertTriangle size={13}/> : <CheckCircle2 size={13}/>} {missingCount ? `${missingCount} 个缺失单元格` : '未发现缺失值'}</span></div>
-              {dataset.warnings?.map((warning,index) => <Notice key={index}>{warning}</Notice>)}
+              <div className="section-toolbar"><div><h2>原始数据</h2></div><span className={`inline-status ${missingCount ? 'attention' : ''}`}>{missingCount ? <AlertTriangle size={13}/> : <CheckCircle2 size={13}/>} {missingCount ? `${missingCount} 个缺失单元格` : '未发现缺失值'}</span></div>
+              {dataset.warnings?.map((warning,index) => <Notice key={index}>{formatAnalysisText(warning)}</Notice>)}
               <DataTable rows={dataset.preview} columns={allColumns} count={dataset.rows}/>
               <div className="field-summary"><h3>字段概览</h3><div className="field-chips">{dataset.columns.map(column => <span className="field-chip" key={column.name}><b className={column.type === 'number' ? 'type-numeric' : ''}>{column.type === 'number' ? '#' : 'Aa'}</b><span>{column.name}</span>{column.missing > 0 && <small>{column.missing} 缺失</small>}</span>)}</div></div>
-              <div className="next-action"><div className="next-action-symbol"><Settings2 size={19}/></div><div><strong>检查右侧的字段映射</strong><p>当前选择{selectedChart.name}。确认数据结构后，预览处理方案。</p></div><button className="button" onClick={() => void previewPlan()} disabled={isBusy}>预览方案<ArrowRight size={15}/></button></div>
-              <div className="source-fingerprint"><span>源文件 SHA-256</span><code title={dataset.sha256}>{dataset.sha256}</code></div>
-            </> : <div className="empty-state welcome-state"><div className="empty-sheet"><div className="sheet-top"><FileSpreadsheet size={18}/><span>experiment.csv</span><i/></div><div className="sheet-grid"><span>sample</span><span>group</span><span>value</span>{Array.from({length:12},(_,i)=><i key={i}/>)}</div><span className="sheet-chart"><ChartGlyph kind="box"/></span></div><span className="eyebrow">YOUR DATA, YOUR WORKSPACE</span><h2>让数据走到图里</h2><p>导入 CSV、TSV 或 Excel，选择一个图表模板。<br/>每一步转换都可以预览，每一张图都附带复现材料。</p><div className="empty-actions"><button className="button primary" onClick={() => fileRef.current?.click()} disabled={isBusy}><Upload size={16}/>导入数据</button><button className="button" onClick={() => void loadExample('wide')} disabled={isBusy}><FlaskConical size={16}/>用合成样例试一试</button></div><div className="empty-footnotes"><span><Laptop size={14}/>本地解析与绘图</span><span><FileCode2 size={14}/>导出代码与参数</span></div></div>)}
+              <div className="next-action"><div className="next-action-symbol"><Settings2 size={19}/></div><div><strong>设置绘图字段</strong><p>{selectedChart.name} · 选择字段后预览方案。</p></div><button className="button" onClick={() => void previewPlan()} disabled={isBusy}>预览方案<ArrowRight size={15}/></button></div>
+            </> : <div className="empty-state welcome-state"><div className="empty-sheet"><div className="sheet-top"><FileSpreadsheet size={18}/><span>experiment.csv</span><i/></div><div className="sheet-grid"><span>sample</span><span>group</span><span>value</span>{Array.from({length:12},(_,i)=><i key={i}/>)}</div><span className="sheet-chart"><ChartGlyph kind="box"/></span></div><span className="eyebrow">YOUR DATA, YOUR WORKSPACE</span><h2>导入数据，开始绘图</h2><p>选择 CSV、TSV 或 XLSX 文件。</p><div className="empty-actions"><button className="button primary" onClick={() => fileRef.current?.click()} disabled={isBusy}><Upload size={16}/>导入数据</button><button className="button" onClick={() => void loadExample('wide')} disabled={isBusy}><FlaskConical size={16}/>使用合成样例</button></div><div className="empty-footnotes"><span><Laptop size={14}/>本地解析与绘图</span><span><FileCode2 size={14}/>导出代码与参数</span></div></div>)}
 
-            {tab === 'plan' && <div className="plan-inbox"><div><Workflow size={14}/><span>已有方案与 Agent 提案</span><button className="text-button" disabled={isBusy} onClick={() => void refreshRecords()}><RefreshCw size={12}/>刷新</button></div><select aria-label="打开已有方案或 Agent 提案" value={plan?.id ?? ''} onChange={event => {const next = plans.find(item => item.id === event.target.value);if(next) void loadPlan(next);}} disabled={isBusy}><option value="">选择一个方案进行检查</option>{plans.filter(item => !dataset || item.datasetId === dataset.id).map(item => <option key={item.id} value={item.id}>{charts.find(chart => chart.id === item.chart)?.name ?? item.chart} · {dateLabel(item.createdAt)} · {item.status === 'approved' ? '已确认' : '待检查'} · {item.id.slice(0,6)}</option>)}</select><p>在 Harness 中生成方案后，点刷新即可载入；这里仅显示当前数据的方案。</p></div>}
+            {tab === 'plan' && <div className="plan-inbox"><div><Workflow size={14}/><span>分析方案</span><button className="text-button" disabled={isBusy} onClick={() => void refreshRecords()}><RefreshCw size={12}/>刷新</button></div><select aria-label="打开分析方案" value={plan?.id ?? ''} onChange={event => {const next = plans.find(item => item.id === event.target.value);if(next) void loadPlan(next);}} disabled={isBusy}><option value="">选择方案</option>{plans.filter(item => !dataset || item.datasetId === dataset.id).map(item => <option key={item.id} value={item.id}>{charts.find(chart => chart.id === item.chart)?.name ?? item.chart} · {dateLabel(item.createdAt)} · {item.status === 'approved' ? '已确认' : '待使用'} · {item.id.slice(0,6)}</option>)}</select><p>查看当前数据的方案。</p></div>}
             {tab === 'plan' && (plan ? <>
-              <div className="section-toolbar"><div><h2>转换方案</h2><span>先核对数据，再确认执行</span></div><span className={`inline-status ${plan.status === 'approved' ? '' : 'neutral'}`}>{plan.status === 'approved' ? <CheckCircle2 size={13}/> : <Workflow size={13}/>} {plan.status === 'approved' ? '已确认' : '等待检查'}</span></div>
+              <div className="section-toolbar"><div><h2>转换方案</h2><span>数据转换与字段设置</span></div><span className={`inline-status ${plan.status === 'approved' ? '' : 'neutral'}`}>{plan.status === 'approved' ? <CheckCircle2 size={13}/> : <Workflow size={13}/>} {plan.status === 'approved' ? '已确认' : '待使用'}</span></div>
               <div className="transformation-summary"><div><span>输入</span><strong>{plan.inputRows.toLocaleString()}<small>行</small></strong></div><ArrowRight size={20}/><div><span>转换后</span><strong>{plan.outputRows.toLocaleString()}<small>行</small></strong></div><div className="drop-count"><span>排除</span><strong>{plan.droppedRows}<small>行</small></strong></div></div>
-              <div className="plan-steps">{plan.steps.map((step,index)=><div key={index}><span>{String(index+1).padStart(2,'0')}</span><p>{step}</p><Check size={14}/></div>)}</div>
-              {plan.warnings?.map((warning,index) => <Notice key={index}>{warning}</Notice>)}
-              <div className="section-toolbar compact"><div><h3>转换后预览</h3><span>字段与结果将保存在复现包中</span></div></div>
+              <div className="plan-steps">{plan.steps.map((step,index)=><div key={index}><span>{String(index+1).padStart(2,'0')}</span><p>{formatAnalysisText(step)}</p><Check size={14}/></div>)}</div>
+              {plan.warnings?.map((warning,index) => <Notice key={index}>{formatAnalysisText(warning)}</Notice>)}
+              <div className="section-toolbar compact"><div><h3>转换后预览</h3></div></div>
               <DataTable rows={plan.preview} columns={plan.outputColumns} count={plan.outputRows}/>
-              <div className="approval-panel"><label className="approval-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} disabled={isBusy}/><span>我已核对字段、分组与缺失值处理，确认使用此方案。</span></label><button className="button primary" onClick={() => void executePlan()} disabled={!reviewed || isBusy || !status.pythonReady}>{busy ? <LoaderCircle size={15} className="spinning"/> : <Play size={15}/>}确认并生成图表</button></div>
-            </> : <div className="empty-state"><Workflow size={34}/><h2>先预览处理方案</h2><p>选择数据和字段后，可以检查转换后的表格、<br/>保留的行数与需要注意的问题。</p><button className="button primary" disabled={!dataset || isBusy} onClick={() => void previewPlan()}><Layers size={16}/>预览转换方案</button></div>)}
+              <div className="approval-panel"><label className="approval-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} disabled={isBusy}/><span>使用此方案</span></label><button className="button primary" onClick={() => void executePlan()} disabled={!reviewed || isBusy || !status.pythonReady}>{busy ? <LoaderCircle size={15} className="spinning"/> : <Play size={15}/>}生成图表</button></div>
+            </> : <div className="empty-state"><Workflow size={34}/><h2>预览转换方案</h2><p>选择数据与字段，查看转换后的表格。</p><button className="button primary" disabled={!dataset || isBusy} onClick={() => void previewPlan()}><Layers size={16}/>预览转换方案</button></div>)}
 
             {tab === 'figure' && (run ? run.status === 'completed' ? <>
-              <div className="section-toolbar"><div><h2>生成结果</h2><span>{dateLabel(run.createdAt)} · 本地固定模板</span></div><span className="inline-status"><CheckCircle2 size={14}/>已完成</span></div>
-              <div className="figure-paper">{imageUrl ? failedImageUrl === imageUrl ? <div className="figure-preview-error" role="alert"><AlertTriangle size={24}/><strong>图片预览加载失败</strong><p>请确认本地服务仍在运行。可重新加载预览，或下载下方的图片文件检查。</p><button className="button" onClick={() => setFailedImageUrl(null)}><RefreshCw size={14}/>重新加载预览</button></div> : <img src={imageUrl} alt="根据当前运行数据与确认参数生成的科研图表" onError={() => setFailedImageUrl(imageUrl)}/> : <p>本次运行未提供可预览的图片，请查看导出文件。</p>}</div>
+              <div className="section-toolbar"><div><h2>生成结果</h2><span>{dateLabel(run.createdAt)}</span></div><span className="inline-status"><CheckCircle2 size={14}/>已完成</span></div>
+              <div className="figure-paper">{imageUrl ? failedImageUrl === imageUrl ? <div className="figure-preview-error" role="alert"><AlertTriangle size={24}/><strong>图片预览加载失败</strong><p>请重新加载，或下载图片。</p><button className="button" onClick={() => setFailedImageUrl(null)}><RefreshCw size={14}/>重新加载预览</button></div> : <img src={imageUrl} alt="科研图表" onError={() => setFailedImageUrl(imageUrl)}/> : <p>暂无图片预览，请查看导出文件。</p>}</div>
               <div className="figure-caption"><span>{run.summary.rows.toLocaleString()} 行参与绘图{run.summary.groups !== undefined ? ` · ${run.summary.groups} 个组` : ''}</span><span>Run <code>{run.id.slice(0,8)}</code></span></div>
-              <div className="export-panel"><div className="export-title"><ArrowDownToLine size={19}/><div><strong>带走结果，也带走过程</strong><p>图片、处理后的数据、脚本、参数和记录。</p></div></div><div className="export-actions">{(['chart.png','chart.svg','chart.pdf'] as const).map(name => artifact(name) && <a key={name} className="button" href={artifact(name)} download>{name.split('.')[1].toUpperCase()}<ArrowDownToLine size={13}/></a>)}{artifact('bundle.zip') && <a className="button primary" href={artifact('bundle.zip')} download>下载复现包<ArrowDownToLine size={15}/></a>}</div></div>
+              <div className="export-panel"><div className="export-title"><ArrowDownToLine size={19}/><div><strong>导出结果</strong><p>图片、数据、代码和参数。</p></div></div><div className="export-actions">{(['chart.png','chart.svg','chart.pdf'] as const).map(name => artifact(name) && <a key={name} className="button" href={artifact(name)} download>{name.split('.')[1].toUpperCase()}<ArrowDownToLine size={13}/></a>)}{artifact('bundle.zip') && <a className="button primary" href={artifact('bundle.zip')} download>下载复现包<ArrowDownToLine size={15}/></a>}</div></div>
               <details className="artifact-details"><summary>查看本次输出文件<span>{run.artifacts.length} 个文件</span></summary><div>{run.artifacts.map(item => <a key={item.name} href={item.url} download><FileCode2 size={15}/><span>{item.name}</span><ArrowDownToLine size={14}/></a>)}</div></details>
-            </> : <div className="empty-state failed-state"><AlertTriangle size={34}/><h2>本次绘图未完成</h2><p>{run.error || '请检查数据与参数后重新生成。'}</p><button className="button" onClick={() => setTab('plan')}>返回方案<ArrowRight size={15}/></button></div> : <div className="empty-state"><BarChart3 size={36}/><h2>图表将在这里生成</h2><p>先预览转换方案并确认执行。<br/>输出包括 PNG、SVG、PDF 和复现包。</p><button className="button" onClick={() => setTab(plan ? 'plan' : 'data')}>{plan ? '检查方案' : '查看数据'}<ArrowRight size={15}/></button></div>)}
+            </> : <div className="empty-state failed-state"><AlertTriangle size={34}/><h2>本次绘图未完成</h2><p>{formatAnalysisText(run.error || '请检查数据与参数后重新生成。')}</p><button className="button" onClick={() => setTab('plan')}>返回方案<ArrowRight size={15}/></button></div> : <div className="empty-state"><BarChart3 size={36}/><h2>图表将在这里生成</h2><p>使用转换方案生成图表，导出图片与复现包。</p><button className="button" onClick={() => setTab(plan ? 'plan' : 'data')}>{plan ? '检查方案' : '查看数据'}<ArrowRight size={15}/></button></div>)}
 
-            {tab === 'history' && <><div className="section-toolbar"><div><h2>运行记录</h2><span>保留数据来源、参数与输出文件</span></div><span className="muted tiny">{runs.length} 次运行</span></div>{runs.length ? <div className="history-list">{runs.map(item => <button key={item.id} className="history-item" onClick={() => void loadRun(item)} disabled={isBusy}>{item.status === 'completed' ? <CheckCircle2 size={19} className="history-success"/> : <AlertTriangle size={19} className="history-failure"/>}<div><strong>{datasets.find(data => data.id === item.datasetId)?.name ?? '分析记录'}</strong><span>{dateLabel(item.createdAt)} · {item.status === 'completed' ? `${item.summary.rows} 行参与绘图` : '运行失败'}</span></div><code>{item.id.slice(0,8)}</code><ChevronRight size={15}/></button>)}</div> : <div className="empty-state"><History size={34}/><h2>还没有运行记录</h2><p>完成一次绘图后，可以在这里重新打开结果。</p></div>}</>}
+            {tab === 'history' && <><div className="section-toolbar"><div><h2>运行记录</h2><span>数据、参数与结果</span></div><span className="muted tiny">{runs.length} 次运行</span></div>{runs.length ? <div className="history-list">{runs.map(item => <button key={item.id} className="history-item" onClick={() => void loadRun(item)} disabled={isBusy}>{item.status === 'completed' ? <CheckCircle2 size={19} className="history-success"/> : <AlertTriangle size={19} className="history-failure"/>}<div><strong>{datasets.find(data => data.id === item.datasetId)?.name ?? '分析记录'}</strong><span>{dateLabel(item.createdAt)} · {item.status === 'completed' ? `${item.summary.rows} 行参与绘图` : '运行失败'}</span></div><code>{item.id.slice(0,8)}</code><ChevronRight size={15}/></button>)}</div> : <div className="empty-state"><History size={34}/><h2>还没有运行记录</h2><p>生成图表后，可在此打开结果。</p></div>}</>}
           </>}
         </div>
-        <footer className="workbench-footer"><span><Laptop size={13}/>文件在本机解析与绘图</span><span>{busy ? <><LoaderCircle size={12} className="spinning"/>{busy}</> : <><span className="status-dot"/>固定模板模式 · 当前页面未调用模型</>}</span></footer>
+        <footer className="workbench-footer"><span><BarChart3 size={13}/>绘图工具</span><span>{busy ? <><LoaderCircle size={12} className="spinning"/>{busy}</> : <><span className="status-dot"/>{loading ? '连接中' : status?.pythonReady ? '就绪' : '待连接'}</>}</span></footer>
       </main>
 
       <aside className="parameters" aria-label="图表参数">
@@ -348,7 +368,7 @@ export default function App() {
         <p className="template-description">{selectedChart.description}。</p>
         <fieldset className="parameter-fields" disabled={!dataset || isBusy}>
           <legend className="sr-only">设置图表数据与样式</legend>
-          {groupedChart && <div className="parameter-section"><div className="parameter-section-title"><span>01</span><h3>数据结构</h3></div><div className="segmented"><button type="button" className={config.layout === 'wide' ? 'active' : ''} aria-pressed={config.layout === 'wide'} onClick={() => changeConfig({layout:'wide'})}>宽表</button><button type="button" className={config.layout === 'long' ? 'active' : ''} aria-pressed={config.layout === 'long'} onClick={() => changeConfig({layout:'long'})}>长表</button></div><p className="field-hint">{config.layout === 'wide' ? '每个数值列是一组，预览时转换成长表。' : '分组与测量值分别放在两列中。'}</p></div>}
+          {groupedChart && <div className="parameter-section"><div className="parameter-section-title"><span>01</span><h3>数据结构</h3></div><div className="segmented"><button type="button" className={config.layout === 'wide' ? 'active' : ''} aria-pressed={config.layout === 'wide'} onClick={() => changeConfig({layout:'wide'})}>宽表</button><button type="button" className={config.layout === 'long' ? 'active' : ''} aria-pressed={config.layout === 'long'} onClick={() => changeConfig({layout:'long'})}>长表</button></div><p className="field-hint">{config.layout === 'wide' ? '每个数值列对应一组。' : '分组和数值各占一列。'}</p></div>}
           <div className="parameter-section"><div className="parameter-section-title"><span>{groupedChart ? '02' : '01'}</span><h3>字段映射</h3></div>
             {config.chart === 'heatmap' && <FieldSelect label="行标签（可选）" value={config.x} onChange={x => changeConfig({x})} columns={allColumns.filter(name => !config.valueColumns.includes(name))} optional emptyLabel="使用行号"/>}
             {(groupedChart && config.layout === 'wide' || config.chart === 'heatmap') ? <div className="column-picker"><span className="field-label">{config.chart === 'heatmap' ? '矩阵数值列' : '参与绘图的组'}</span>{numericColumns.length ? numericColumns.map(name => <label key={name}><input type="checkbox" checked={config.valueColumns.includes(name)} onChange={event => changeConfig({valueColumns:event.target.checked ? [...config.valueColumns,name] : config.valueColumns.filter(value => value !== name)})}/><span>{name}</span><b>#</b></label>) : <p className="field-hint">导入后显示数值字段</p>}</div> : <>
@@ -357,18 +377,24 @@ export default function App() {
               {config.chart !== 'histogram' && <FieldSelect label={config.chart === 'scatter' ? '颜色分组（可选）' : '分组字段'} value={config.group} onChange={group => changeConfig({group})} columns={allColumns} optional={config.chart === 'scatter'}/>}
             </>}
           </div>
-          <div className="parameter-section"><div className="parameter-section-title"><span>{groupedChart ? '03' : '02'}</span><h3>缺失值处理</h3></div><label className={`radio-option ${config.missing === 'error' ? 'selected' : ''}`}><input type="radio" name="missing" value="error" checked={config.missing === 'error'} onChange={() => changeConfig({missing:'error'})}/><span><strong>发现缺失时停止</strong><small>先检查数据，不自动删行</small></span></label><label className={`radio-option ${config.missing === 'drop' ? 'selected' : ''}`}><input type="radio" name="missing" value="drop" checked={config.missing === 'drop'} onChange={() => changeConfig({missing:'drop'})}/><span><strong>排除缺失的测量</strong><small>预览中显示实际排除数量</small></span></label></div>
+          <div className="parameter-section"><div className="parameter-section-title"><span>{groupedChart ? '03' : '02'}</span><h3>缺失值处理</h3></div><label className={`radio-option ${config.missing === 'error' ? 'selected' : ''}`}><input type="radio" name="missing" value="error" checked={config.missing === 'error'} onChange={() => changeConfig({missing:'error'})}/><span><strong>遇到缺失值时停止</strong><small>补全数据后继续</small></span></label><label className={`radio-option ${config.missing === 'drop' ? 'selected' : ''}`}><input type="radio" name="missing" value="drop" checked={config.missing === 'drop'} onChange={() => changeConfig({missing:'drop'})}/><span><strong>排除缺失值</strong><small>显示排除数量</small></span></label></div>
           <details className="label-options"><summary>标题与坐标轴<span>可选</span></summary><label className="field"><span>图表标题</span><input value={config.title} onChange={event => changeConfig({title:event.target.value})} placeholder="使用默认标题" maxLength={160}/></label><label className="field"><span>X 轴名称</span><input value={config.xLabel} onChange={event => changeConfig({xLabel:event.target.value})} placeholder="使用字段名称" maxLength={100}/></label><label className="field"><span>Y 轴名称</span><input value={config.yLabel} onChange={event => changeConfig({yLabel:event.target.value})} placeholder="使用字段名称" maxLength={100}/></label></details>
         </fieldset>
-        <div className="parameter-action"><button className="button primary full-width" onClick={() => void previewPlan()} disabled={!dataset || isBusy}>{busy ? <LoaderCircle size={16} className="spinning"/> : <Layers size={16}/>}预览转换方案<ArrowRight size={15}/></button><p>检查方案后，再确认生成图表。</p></div>
-        <div className="agent-note"><Workflow size={17}/><div><strong>需要用自然语言分析？</strong><p>在 DeepSeek Harness 中调用数据检查与方案工具。</p><button className="text-button" onClick={() => setDialog('agent')}>连接 Agent<ArrowUpRight size={13}/></button></div></div>
+        <div className="parameter-action"><button className="button primary full-width" onClick={() => void previewPlan()} disabled={!dataset || isBusy}>{busy ? <LoaderCircle size={16} className="spinning"/> : <Layers size={16}/>}预览转换方案<ArrowRight size={15}/></button><p>查看转换后的数据。</p></div>
+        <div className="agent-note"><Workflow size={17}/><div><strong>继续分析</strong><a className="text-button" href="/">返回对话<ArrowUpRight size={13}/></a></div></div>
       </aside>
     </div>
 
     <div className="live-announcement sr-only" aria-live="polite">{busy || (run?.status === 'completed' ? '图表生成完成，可在结果图中下载。' : '')}</div>
     <dialog className="help-dialog" ref={dialogRef} onCancel={() => setDialog(null)} onClick={event => {if (event.target === event.currentTarget) setDialog(null);}}>
-      <div className="dialog-header"><span className="dialog-symbol">{dialog === 'agent' ? <Workflow size={22}/> : <BookOpen size={22}/>}</span><button className="icon-button" aria-label="关闭窗口" onClick={() => setDialog(null)}><X size={20}/></button></div>
-      {dialog === 'agent' ? <><span className="eyebrow">DEEPSEEK HARNESS</span><h2>连接科研分析 Agent</h2><p className="dialog-lead">本地工作台负责数据检查与绘图，Harness 负责理解你的任务并调用分析工具。</p><ol className="guide-steps"><li><span>01</span><div><strong>启动 Agent 服务</strong><p>在项目目录打开另一个终端，运行：</p><code className="command">npm run agent</code></div></li><li><span>02</span><div><strong>在 Harness 中配置模型</strong><p>使用 Harness 的设置填写模型与 API key。当前工作台页面不保存密钥。</p></div></li><li><span>03</span><div><strong>描述分析任务，回来检查方案</strong><p>例如：检查已导入的数据，按组生成箱线图。执行前在这里确认转换方案。</p></div></li></ol><div className="dialog-note">发送给模型的内容由 Harness 的模型与工具配置决定。首次使用请先用合成样例。</div><a className="button primary full-width" href="/api/harness/open" target="_blank" rel="noreferrer">打开本地 Harness<ExternalLink size={16}/></a><p className="dialog-footnote">默认地址 127.0.0.1:3080 · 需要先启动服务</p></> : <><span className="eyebrow">QUICK START</span><h2>从表格到可复现图表</h2><p className="dialog-lead">先用左侧的合成样例走一遍完整流程。</p><ol className="guide-steps"><li><span>01</span><div><strong>导入数据与选择模板</strong><p>支持 CSV、TSV 和 .xlsx。每个数值列是一组时选宽表，已有分组列时选长表。</p></div></li><li><span>02</span><div><strong>预览转换，核对结果</strong><p>确认字段、保留行数、分组与缺失值处理。原始文件不会被覆盖。</p></div></li><li><span>03</span><div><strong>执行绘图，导出复现包</strong><p>输出图像、数据、分析代码和运行记录。本版使用固定绘图模板，不自动做统计检验。</p></div></li></ol><div className="dialog-note">FASTQ、h5ad、R 脚本、差异分析与单细胞分析尚未接入。热图不自动标准化，图表本身不代表统计显著性。</div><button className="button primary full-width" onClick={() => setDialog(null)}>开始分析<ArrowRight size={16}/></button></>}
+      <div className="dialog-header"><span className="dialog-symbol"><BookOpen size={22}/></span><button className="icon-button" aria-label="关闭窗口" onClick={() => setDialog(null)}><X size={20}/></button></div>
+      <span className="eyebrow">QUICK START</span><h2>使用绘图工具</h2>
+      <ol className="guide-steps">
+        <li><span>01</span><div><strong>导入数据</strong><p>选择 CSV、TSV 或 XLSX 文件。</p></div></li>
+        <li><span>02</span><div><strong>选择图表与字段</strong><p>设置分组、数值列和坐标轴。</p></div></li>
+        <li><span>03</span><div><strong>生成与导出</strong><p>查看方案后生成图表，下载图片与复现包。</p></div></li>
+      </ol>
+      <button className="button primary full-width" onClick={() => setDialog(null)}>开始绘图<ArrowRight size={16}/></button>
     </dialog>
   </div>;
 }

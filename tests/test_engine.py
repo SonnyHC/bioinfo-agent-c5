@@ -62,7 +62,7 @@ class EngineTests(unittest.TestCase):
 
     def test_missing_is_rejected_until_user_selects_drop(self):
         table = self.read("group,value\nControl,0\nControl,\nTreated,4\n")
-        with self.assertRaisesRegex(engine.DataError, "drop"):
+        with self.assertRaisesRegex(engine.DataError, "缺失列：value"):
             engine.prepare(table, {"chart": "box", "group": "group", "y": "value"})
         result = engine.prepare(table, {"chart": "box", "group": "group", "y": "value", "missing": "drop"})
         self.assertEqual(result["data"], [{"group": "Control", "value": 0.0}, {"group": "Treated", "value": 4.0}])
@@ -83,9 +83,9 @@ class EngineTests(unittest.TestCase):
             self.read("group,value\nA,1\ngroup,value\n")
 
     def test_ragged_and_blank_rows_not_silently_discarded(self):
-        with self.assertRaisesRegex(engine.DataError, "不自动补齐"):
+        with self.assertRaisesRegex(engine.DataError, "第 2 行有 3 列，表头有 2 列"):
             self.read("a,b\n1,2,3\n")
-        with self.assertRaisesRegex(engine.DataError, "不自动补齐"):
+        with self.assertRaisesRegex(engine.DataError, "第 3 行有 0 列，表头有 2 列"):
             self.read("a,b\n1,2\n\n")
 
     def test_nonfinite_values_rejected_in_input(self):
@@ -126,7 +126,7 @@ class EngineTests(unittest.TestCase):
         result = engine.prepare(table, {"chart": "heatmap", "x": "gene", "valueColumns": ["Control_1", "Treatment_1"]})
         self.assertEqual(result["data"][0], {"row_label": "GENE_A", "Control_1": 8.1, "Treatment_1": 12.5})
         large = self.read("value\n" + "\n".join(str(number) for number in range(51)))
-        with self.assertRaisesRegex(engine.DataError, "不会自动抽样"):
+        with self.assertRaisesRegex(engine.DataError, "热图有 51 行，最多支持 50 行"):
             engine.prepare(large, {"chart": "heatmap", "valueColumns": ["value"]})
 
     def test_excel_formula_rejected_and_first_sheet_reported(self):
@@ -147,7 +147,7 @@ class EngineTests(unittest.TestCase):
         table = engine.read_table(path)
         self.assertEqual(table["values"], [{"group": "A", "value": 3}])
         self.assertIn("First", table["warnings"][0])
-        self.assertIn("其余工作表不参与", table["warnings"][0])
+        self.assertIn("第一个工作表", table["warnings"][0])
         workbook.close()
 
     def test_formula_style_csv_text_rejected(self):

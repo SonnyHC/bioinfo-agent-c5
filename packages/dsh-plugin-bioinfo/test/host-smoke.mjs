@@ -47,11 +47,11 @@ try {
   const workspace = await call('workspace/create', { request: { path: root } });
   const workspaceId = workspace.workspace?.workspaceId || workspace.workspaceId;
   assert(workspaceId);
-  const session = await call('session/create', { request: { workspaceId, agentPreset: 'bioinfo-c5', title: 'C5 integration verification' } });
+  const session = await call('session/create', { request: { workspaceId, agentPreset: 'bioinfo-c5', title: 'bioinfobuddy integration verification' } });
   assert(session.sessionId || session.session?.sessionId);
   console.log('PASS official Harness authenticated HTTP startup');
-  console.log('PASS official plugin manager installed and enabled C5 bundle');
-  console.log('PASS C5 preset listed and mounted for a real session');
+  console.log('PASS official plugin manager installed and enabled bioinfobuddy bundle');
+  console.log('PASS bioinfobuddy preset listed and mounted for a real session');
   console.log('No model request was sent; this does not verify a live DeepSeek response.');
 } catch (error) {
   console.error(error.message);
