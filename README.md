@@ -1,25 +1,35 @@
 # bioinfobuddy
 
-面向郑州大学 C5 项目的本地科研数据适配与绘图 Agent 原型。
+面向郑州大学 C5 项目的生信表格分析与绘图 Agent。
 
-用 CSV / Excel 数据完成 **查看原表 → 配置图表 → 预览转换 → 确认 → 本地绘图 → 导出复现包**。
-官方 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 负责自然语言交互和专用工具调用；固定 Python 模板负责数据转换与绘图。
+**默认是可部署到 Vercel 的独立网页。无需启动 DeepSeek Harness 服务。**
+网页采用 Harness 的工具调用流程：检查真实数据 → 提出方案 → 用户确认 → 执行绘图 → 核对结果。
 
-## 当前能力
+## 使用
 
-- 导入 CSV、TSV、XLSX，查看数据类型、缺失值、原始预览和 SHA-256。
-- 箱线图、小提琴图、散点图、直方图、均值柱状图和热图。
-- 指定宽表数据列并预览转成长表；长表手动选择分组、数值字段。
-- 缺失值默认阻止执行，只有明确选择后才能删除相关行；不自动填补、归一化或剔除异常值。
-- 批准后才可运行方案。Agent 可以检查数据和提出方案，不能批准自己的方案。
-- 导出 PNG / SVG / PDF、处理后 CSV、可独立运行的 Python 绘图脚本、参数与运行记录。
-- 内置三份合成数据，未配置模型密钥也可验证完整本地绘图流程。
+- 首次打开配置自己的 DeepSeek API Key。默认只在当前标签会话保存，可选择在此浏览器记住。
+- 导入 CSV、TSV、XLSX，或使用合成样例。网页上传上限为 **2 MiB**，适配 Vercel 请求大小限制；最多 50,000 行、100 列，XLSX 读取第一张工作表。
+- 在对话中要求检查数据、制定绘图方案；点击返回的链接进入工作台确认并执行。
+- 支持箱线图、小提琴图、散点图、直方图、均值柱状图、热图。
+- 可导出 PNG / SVG / PDF、处理后的 CSV、参数记录、可独立执行的 Python 绘图脚本和 ZIP 复现包。
 
-这是一版可验证的原型。尚未实现 FASTQ 处理、H5AD / 单细胞分析、差异分析、富集分析、自动统计检验、桌面安装包或远程多人服务。支持的是固定绘图流程，不把一次运行解释为方法或科学结论已经验证。
+## 本地存储与计算
 
-## 启动
+| 内容 | 位置 |
+| --- | --- |
+| 原始文件、数据概要、方案、图表、运行记录、聊天记录 | 当前网站、当前浏览器的 IndexedDB |
+| 模型名称 | 当前浏览器 localStorage |
+| API Key | 默认 sessionStorage；勾选记住后为 localStorage |
+| Python 处理过程 | 一次请求的临时目录，结束后删除 |
+| 模型请求 | 同源 `/api/chat` 临时转发至官方 DeepSeek API |
 
-需要 Node.js 22.18+（22 系列）或 24.2+，以及 Python 3.11–3.13。初次安装需要联网。
+“本地保存”指数据长期存放在浏览器中，不代表离线计算。导入、预览和绘图会把相应文件发送到本站 Python 接口；模型会收到对话、工具返回的字段概要和少量数据预览。服务器应用不保存聊天、API Key 或分析文件，也不记录请求正文。
+
+清除网站数据会删除本地记录；更换浏览器、设备、域名或端口不会自动同步。重要结果请下载复现包，聊天可在右上角导出 JSON。旧版项目的 `.local/` 文件没有被删除，也不会自动上传或导入新版。尚未提供跨设备同步、差异分析、富集分析、FASTQ/H5AD 或单细胞计算。
+
+## 本机预览
+
+需要 Node.js 22.18+ 或 24.2+、Python 3.12。
 
 ```bash
 npm ci --ignore-scripts
@@ -28,48 +38,34 @@ npm run build
 npm start
 ```
 
-打开 <http://127.0.0.1:4318>，进入官方 dsh 对话界面。首次进入先配置 DeepSeek API Key；后续可在「设置 → 模型」修改。`npm start` 会同时启动后端和 Harness，关闭进程时一并退出。
+打开 <http://127.0.0.1:5173>。`npm run dev` 提供开发模式。两个本地 API 适配器与 Vercel 使用同一套处理代码，只监听本机 4319/4320；默认启动流程不读取旧 `.local/dsh`，不启动 Harness。
 
-从侧栏「数据与绘图」打开工具页，点击「宽表样例」，选择箱线图，配置 `Control`、`Treatment` 等实际列名，预览并确认，再生成图片和复现包。也可直接打开 <http://127.0.0.1:4318/workbench>。样例均为合成数据。
+## 部署与绑定域名
 
-若系统默认 Python 不在支持范围，先用合适版本创建虚拟环境：
+完整操作见 [Vercel 部署说明](docs/vercel-deployment.md)。
 
-```bash
-python3.12 -m venv .venv
-.venv/bin/python -m pip install -r python/requirements.txt
-```
+1. 将此版本推送到 GitHub，在 Vercel 中导入仓库。
+2. 仓库根目录部署；`vercel.json` 已定义构建命令、静态输出和两个函数。
+3. 先验证 Vercel 预览网址的对话、绘图、刷新恢复和下载。
+4. 在项目 Settings → Domains 添加 `bioinfobuddy.com.cn`，按控制台实际给出的 DNS 值配置。
 
-Windows 使用 `.venv\Scripts\python.exe`。安装脚本可用 `BIOINFO_SETUP_PYTHON` 指定创建虚拟环境的基础解释器。运行服务时默认使用项目 `.venv`；只有需要自行维护其他已装好依赖的环境时，才设置 `BIOINFO_PYTHON` 为那个环境的解释器绝对路径。
+不需要额外的常驻服务器或云数据库。Vercel 和 DeepSeek 按各自账户套餐计量，部署配置本身不包含密钥。
 
-## 连接 DeepSeek Harness
-
-`npm start` 自动使用官方 `@deepseek-ai/dsh@0.2.1-rc.2`，安装本仓库的 C5 插件到独立 `.local/dsh/`，并以「bioinfobuddy」为默认预设。Harness 使用自动分配的本机端口，始终通过 4318 主入口进入即可。详细配置和独立调试命令见 [Harness 集成](docs/harness-integration.md)。
-
-建议首先上传合成样例，再输入：
-
-> 列出工作台里的数据。检查合成宽表，为 Control 和 Treatment 制定箱线图方案，保留每个观测值，缺失值先报错。不要执行，等我在工作台确认。
-
-返回工作台刷新「Agent 方案」，检查并确认后即可运行。配置模型后，数据概要、工具返回的少量预览行和用户输入会发送给该模型服务商。仅本地模板绘图不需要模型请求；连接模型前请使用已脱敏、获准处理的数据。API key 不进入前端代码、Git 或复现包。
-
-## 开发与测试
+## 验证与源码
 
 ```bash
-npm run dev       # 后端 4318 + Harness
-npm run dev:web   # 绘图页 http://127.0.0.1:5173/workbench/，代理本地 API
 npm run typecheck
+npm run test:cloud
 npm run test:python
-npm test
-npm run test:plugin
-npm run test:harness  # 需要先启动 4318 后端；不请求模型
 npm run build
 ```
 
-`src/` 是本地 HTTP 服务，`python/` 是确定性分析引擎，`web/` 是 React 工作台，`packages/dsh-plugin-bioinfo/` 是独立 Harness bundle。数据、方案、历史、模型设置均放在被 Git 忽略的 `.local/`，原始数据保留，所有转换写入新的结果目录。
+- `web/src/Chat.tsx`：独立对话界面。
+- `web/src/agent-loop.ts`、`agent-tools.ts`：工具循环与受限科学工具。
+- `web/src/storage.ts`、`api.ts`：浏览器存储、方案确认与结果恢复。
+- `api/chat.js`、`serverless/chat-handler.mjs`：无状态模型转发。
+- `api/analysis.py`、`python/engine.py`：无状态接口与固定 Python 绘图逻辑。
 
-上传限制为 10 MiB、50,000 行和 100 列。XLSX 仅读取第一张工作表并拒绝公式单元格。热图等还有用于保持可读性的尺寸限制，超出时会明确提示。服务固定监听 `127.0.0.1`，不提供云部署或公网访问配置。
+旧本机服务及官方 Harness 插件仍在 `src/`、`packages/dsh-plugin-bioinfo/` 中作为历史实现保留；`npm run dev:legacy` / `npm run agent` 是显式的旧模式命令，**不参与新版运行或 Vercel 部署**。原集成说明见 [Harness 集成](docs/harness-integration.md)。新版是沿用 Harness 工具设计的独立实现，不声称调用了官方 Harness 运行时。
 
-## 比赛与来源
-
-报名截止 **2026 年 11 月 4 日**，由学院统一报送。C5 方向匹配与人数差异见 [比赛要求及首版范围](docs/competition-and-scope.md)；以学校后续要求为准。
-
-参考 [BioDSH desktop-tauri-v1.0.0-preview.1](https://github.com/sagirimo/BioDSH/releases/tag/desktop-tauri-v1.0.0-preview.1) 的 Harness 插件化思路，直接使用官方 dsh 对话界面，独立实现数据与绘图工具页及 C5 插件。上游及许可说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本项目暂为私有开发仓库，尚未对自有代码指定开源许可证。
+比赛依据见 [比赛要求及首版范围](docs/competition-and-scope.md)，上游许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

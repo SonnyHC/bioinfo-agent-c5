@@ -54,7 +54,6 @@ export interface Run {
 export interface ServiceStatus {
   version: string;
   pythonReady: boolean;
-  harness: { url: string; status: string };
-  mode: 'local';
+  mode: 'browser';
   maxUploadMB: number;
 }

@@ -1,3 +1,5 @@
+> 历史本机集成说明：0.2.0 默认使用独立网页和浏览器存储，不启动本文描述的 Harness 服务。新版部署见 [Vercel 部署说明](vercel-deployment.md)。
+
 # DeepSeek Harness 集成
 
 本项目使用官方 DeepSeek Harness 作为主界面，提供对话、模型选择、工作区、会话记录和工具调用。数据与绘图工作台负责导入表格、查看方案、运行图表及下载结果。

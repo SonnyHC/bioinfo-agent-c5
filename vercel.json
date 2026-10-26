@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/client",
+  "functions": {
+    "api/chat.js": { "maxDuration": 120 },
+    "api/analysis.py": {
+      "maxDuration": 120,
+      "excludeFiles": "{.local/**,.venv/**,node_modules/**,tests/**,web/**,packages/**,docs/**,src/**,.git/**}"
+    }
+  },
+  "rewrites": [
+    { "source": "/workbench", "destination": "/index.html" },
+    { "source": "/workbench/", "destination": "/index.html" }
+  ],
+  "headers": [{ "source": "/(.*)", "headers": [
+    { "key": "X-Content-Type-Options", "value": "nosniff" },
+    { "key": "Referrer-Policy", "value": "no-referrer" },
+    { "key": "X-Frame-Options", "value": "DENY" }
+  ] }]
+}

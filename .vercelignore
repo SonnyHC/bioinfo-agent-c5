@@ -1,0 +1,8 @@
+.local
+.venv
+.git
+node_modules
+test-results
+dist
+*.log
+.env*
