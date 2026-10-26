@@ -1,0 +1,7 @@
+sample,group,value,measure
+S01,Control,4.2,12
+S02,Control,5.1,15
+S03,Control,4.8,14
+S04,Treated,6.7,21
+S05,Treated,7.2,23
+S06,Treated,6.9,22

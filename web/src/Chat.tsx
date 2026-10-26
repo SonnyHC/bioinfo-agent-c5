@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, Check, Database, Dna, Download, History, Laptop, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, Laptop, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
 import { companion, companionFetch, companionConnected } from './companion';
 import { list, save } from './storage';
 import { runAgent } from './agent-loop';
@@ -7,6 +7,7 @@ import type { Message, ToolEvent } from './agent-loop';
 import { executeTool, systemPrompt, toolDefinitions, toolLabels } from './agent-tools';
 
 import AnalysisPanel from './AnalysisPanel';
+import Tutorial from './Tutorial';
 import { appRoute, messageParts, OPEN_ANALYSIS, safeAppLink, viewLabels } from './navigation';
 import type { AnalysisView, MainView } from './navigation';
 import './chat.css';
@@ -51,7 +52,7 @@ function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>vo
 export default function Chat() {
   const initialRoute = appRoute(window.location.pathname + window.location.search);
   const [view, setView] = useState<MainView>(initialRoute.view);
-  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'chat' ? 'analysis' : initialRoute.view);
+  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'chat' || initialRoute.view === 'tutorial' ? 'analysis' : initialRoute.view);
   const mobileNavigation = useRef<HTMLDialogElement>(null);
   const [conversation, setConversation] = useState<Conversation>(fresh);
   const [history, setHistory] = useState<Conversation[]>([]);
@@ -82,7 +83,7 @@ export default function Chat() {
     const next = appRoute(safe);
     if (push) window.history.pushState(null, '', safe);
     setView(next.view);
-    if (next.view !== 'chat') setPanelView(next.view);
+    if (next.view !== 'chat' && next.view !== 'tutorial') setPanelView(next.view);
     mobileNavigation.current?.close();
     if (next.view === 'analysis' && Object.keys(next.request).length) window.dispatchEvent(new CustomEvent(OPEN_ANALYSIS, {detail:next.request}));
     if (next.view === 'chat' && next.request.dataset) void selectForChat(next.request.dataset, false);
@@ -239,7 +240,7 @@ export default function Chat() {
     <a href="/" className="chat-brand" onClick={event=>{event.preventDefault();navigate('chat');}}><Dna size={24}/><strong>bioinfobuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'environments',icon:Laptop},{id:'history',icon:History}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'environments',icon:Laptop},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button disabled title="入口预留，后续开放"><Dna size={17}/><span>参考基因组</span><small>预留</small></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
@@ -270,7 +271,8 @@ export default function Chat() {
       </div>
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx,.fastq,.fq,.gz,.h5ad,.r,.R" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
-      <section className="chat-analysis" hidden={view==='chat'} aria-label={viewLabels[panelView]}><AnalysisPanel view={panelView} onNavigate={navigateFromPanel} onDataset={(id:string)=>void selectForChat(id)}/></section>
+      {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
+      <section className="chat-analysis" hidden={view==='chat'||view==='tutorial'} aria-label={viewLabels[panelView]}><AnalysisPanel view={panelView} onNavigate={navigateFromPanel} onDataset={(id:string)=>void selectForChat(id)}/></section>
     </main>
     <dialog ref={dialog} className="model-dialog" onCancel={() => setSettings(false)}>
       <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={() => setSettings(false)}><X size={19}/></button></div>
