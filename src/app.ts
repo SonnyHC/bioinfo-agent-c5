@@ -10,7 +10,7 @@ import { runPython } from './python.js';
 export const root = path.resolve(import.meta.dirname, import.meta.dirname.endsWith(path.join('dist', 'server')) ? '../..' : '..');
 type RecordData = Record<string, any>;
 const idSchema = z.string().uuid();
-const field = z.string().min(1).max(160).optional();
+const field = z.string().max(160).optional();
 const planSchema = z.object({
   datasetId: idSchema,
   chart: z.enum(['box', 'violin', 'scatter', 'histogram', 'bar', 'heatmap']),
@@ -21,7 +21,7 @@ const planSchema = z.object({
   title: z.string().max(160).optional(),
   xLabel: z.string().max(120).optional(), yLabel: z.string().max(120).optional(),
 }).strict();
-const artifacts = ['chart.png', 'chart.svg', 'chart.pdf', 'processed.csv', 'analysis.py', 'manifest.json', 'bundle.zip'];
+const artifacts = ['chart.png', 'chart.svg', 'chart.pdf', 'processed.csv', 'analysis.py', 'manifest.json', 'requirements.txt', 'bundle.zip'];
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 
 export async function createApp(options: { dataDir?: string; port?: number; token?: string } = {}) {
@@ -95,8 +95,20 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 2 } });
   app.get('/api/status', async (_req, res) => {
     let pythonReady = false;
-    try { await worker(['inspect', path.join(root, 'examples/wide.csv')]); pythonReady = true; } catch {}
-    res.json({ version: '0.1.0', pythonReady, harness: { url: 'http://127.0.0.1:3080', status: 'not_checked' }, mode: 'local', maxUploadMB: 10 });
+    try { await worker(['doctor']); pythonReady = true; } catch {}
+    res.json({ version: '0.1.0', pythonReady, harness: { url: '/api/harness/open', status: 'not_checked' }, mode: 'local', maxUploadMB: 10 });
+  });
+  app.get('/api/harness/open', async (_req, res) => {
+    if (res.locals.agent) throw new ApiError(403, '模型工具不能读取 Harness 浏览器登录信息。');
+    try {
+      const connection = JSON.parse(await fs.readFile(path.join(dataDir, 'harness.json'), 'utf8'));
+      const target = new URL(connection.bootstrapUrl);
+      const port = Number(target.port);
+      if (target.protocol !== 'http:' || target.hostname !== '127.0.0.1' || target.username || target.password || target.pathname !== '/' || port < 1024 || port > 65535 || !target.searchParams.get('token')) throw new Error('Invalid bootstrap URL');
+      res.redirect(302, target.href);
+    } catch {
+      res.status(503).type('text').send('请先在项目目录的另一个终端运行 npm run agent，等待出现 dsh web 地址后，再返回工作台打开 Agent。');
+    }
   });
   app.get('/api/datasets', async (_req, res) => res.json({ datasets: (await list('datasets')).map(publicDataset) }));
   app.get('/api/datasets/:id', async (req, res) => res.json(publicDataset(await read('datasets', req.params.id))));
@@ -138,13 +150,13 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
     if (plan.status !== 'approved') throw new ApiError(409, '请先在工作台检查并确认转换方案。');
     if (running.has(plan.id)) throw new ApiError(409, '这个方案正在执行。');
     if (plan.runId) return res.json(await read('runs', plan.runId));
-    const dataset = await read('datasets', plan.datasetId);
-    const actualHash = createHash('sha256').update(await fs.readFile(inputFile(dataset))).digest('hex');
-    if (actualHash !== plan.sourceSha256) throw new ApiError(409, '原始文件已经变化，请重新导入并确认方案。');
     running.add(plan.id);
     const id = randomUUID();
     const outputDir = path.join(dataDir, 'runs', id);
     try {
+      const dataset = await read('datasets', plan.datasetId);
+      const actualHash = createHash('sha256').update(await fs.readFile(inputFile(dataset))).digest('hex');
+      if (actualHash !== plan.sourceSha256) throw new ApiError(409, '原始文件已经变化，请重新导入并确认方案。');
       await fs.mkdir(outputDir, { recursive: true, mode: 0o700 });
       const summary = await worker<RecordData>(['render', inputFile(dataset), outputDir], plan);
       const manifestPath = path.join(outputDir, 'manifest.json');
@@ -169,7 +181,8 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
       await write('plans', { ...plan, runId: id });
       res.status(201).json(run);
     } catch (err: any) {
-      const run = { id, planId: plan.id, datasetId: dataset.id, status: 'failed', createdAt: new Date().toISOString(), error: err.message, artifacts: [], summary: { rows: 0 } };
+      if (err instanceof ApiError && err.status === 409) throw err;
+      const run = { id, planId: plan.id, datasetId: plan.datasetId, status: 'failed', createdAt: new Date().toISOString(), error: err.message, artifacts: [], summary: { rows: 0 } };
       await write('runs', run);
       res.status(422).json(run);
     } finally { running.delete(plan.id); }
@@ -181,7 +194,8 @@ export async function createApp(options: { dataDir?: string; port?: number; toke
     if (run.status !== 'completed' || !artifacts.includes(req.params.name)) throw new ApiError(404, '结果文件不存在。');
     const file = path.join(dataDir, 'runs', run.id, req.params.name);
     if (!['chart.png', 'chart.svg'].includes(req.params.name)) res.attachment(req.params.name);
-    res.sendFile(file);
+    // The allowlisted output lives under .local; Express otherwise hides it.
+    res.sendFile(file, { dotfiles: 'allow' });
   });
   app.use('/api', (_req, _res, next) => next(new ApiError(404, '接口不存在。')));
   const clientDir = path.join(root, 'dist/client');

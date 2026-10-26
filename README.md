@@ -19,10 +19,10 @@
 
 ## 启动
 
-需要 Node.js 22.13+（建议 22 LTS）及 Python 3.11–3.13。初次安装需要联网。
+需要 Node.js 22.18+（22 系列）或 24.2+，以及 Python 3.11–3.13。初次安装需要联网。
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run setup:python
 npm run build
 npm start
@@ -37,7 +37,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m pip install -r python/requirements.txt
 ```
 
-Windows 使用 `.venv\Scripts\python.exe`。也可以用 `BIOINFO_PYTHON` 指定解释器绝对路径。
+Windows 使用 `.venv\Scripts\python.exe`。安装脚本可用 `BIOINFO_SETUP_PYTHON` 指定创建虚拟环境的基础解释器。运行服务时默认使用项目 `.venv`；只有需要自行维护其他已装好依赖的环境时，才设置 `BIOINFO_PYTHON` 为那个环境的解释器绝对路径。
 
 ## 连接 DeepSeek Harness
 
@@ -63,6 +63,8 @@ npm run dev:web   # 前端 5173，代理本地 API
 npm run typecheck
 npm run test:python
 npm test
+npm run test:plugin
+npm run test:harness  # 需要先启动 4318 后端；不请求模型
 npm run build
 ```
 

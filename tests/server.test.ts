@@ -7,7 +7,8 @@ import { once } from 'node:events';
 import { createApp } from '../src/app.ts';
 
 test('local workflow preserves input, requires human approval, and exports real artifacts', async (t) => {
-  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'c5-api-'));
+  const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'c5-api-'));
+  const dataDir = path.join(testDir, '.local');
   const token = 'test-only-token';
   const { app } = await createApp({ dataDir, token });
   const server = app.listen(0, '127.0.0.1');
@@ -15,7 +16,7 @@ test('local workflow preserves input, requires human approval, and exports real 
   const address = server.address();
   assert(address && typeof address !== 'string');
   const base = `http://127.0.0.1:${address.port}`;
-  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await fs.rm(dataDir, { recursive: true, force: true }); });
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await fs.rm(testDir, { recursive: true, force: true }); });
   const call = async (url: string, body?: unknown, extra: Record<string, string> = {}) => {
     const response = await fetch(base + url, { method: body === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, body: await response.json() as any };
@@ -37,7 +38,9 @@ test('local workflow preserves input, requires human approval, and exports real 
   const agentApproval = await call(`/api/plans/${draft.body.id}/approve`, {}, { 'X-Bioinfo-Token': token });
   assert.equal(agentApproval.status, 403);
   assert.equal((await call(`/api/plans/${draft.body.id}/approve`, {})).status, 200);
-  const run = await call(`/api/plans/${draft.body.id}/run`, {});
+  const concurrent = await Promise.all([call(`/api/plans/${draft.body.id}/run`, {}), call(`/api/plans/${draft.body.id}/run`, {})]);
+  assert.deepEqual(concurrent.map(r => r.status).sort(), [201, 409], 'one plan cannot run twice concurrently');
+  const run = concurrent.find(r => r.status === 201)!;
   assert.equal(run.status, 201, JSON.stringify(run.body));
   assert.equal(run.body.status, 'completed');
   assert(run.body.artifacts.length >= 7);
@@ -52,6 +55,15 @@ test('local workflow preserves input, requires human approval, and exports real 
   const unauthorizedFile = await fetch(`${base}/api/runs/${run.body.id}/artifacts/connection.json`);
   assert.equal(unauthorizedFile.status, 404);
   assert.equal((await call('/api/datasets', undefined, { 'X-Bioinfo-Token': 'incorrect' })).status, 401);
+  const beforeAgent = await fetch(base + '/api/harness/open', { redirect: 'manual' });
+  assert.equal(beforeAgent.status, 503);
+  await fs.writeFile(path.join(dataDir, 'harness.json'), JSON.stringify({bootstrapUrl:'https://unrelated.example/?token=test'}));
+  assert.equal((await fetch(base + '/api/harness/open', {redirect:'manual'})).status, 503);
+  await fs.writeFile(path.join(dataDir, 'harness.json'), JSON.stringify({bootstrapUrl:'http://127.0.0.1:3080/?token=test-local-only'}));
+  const agentLink = await fetch(base + '/api/harness/open', {redirect:'manual'});
+  assert.equal(agentLink.status, 302);
+  assert.equal(agentLink.headers.get('location'), 'http://127.0.0.1:3080/?token=test-local-only');
+  assert.equal((await call('/api/harness/open', undefined, {'X-Bioinfo-Token':token})).status,403);
 });
 
 test('file uploads reject invalid content and preserve quoted cells', async (t) => {

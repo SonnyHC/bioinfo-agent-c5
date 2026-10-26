@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "本地生信数据适配与可复现绘图工作台，集成官方 DeepSeek Harness",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": "^22.18.0 || >=24.2.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:web": "vite --config web/vite.config.ts",
@@ -14,28 +16,30 @@
     "setup:python": "node scripts/setup-python.mjs",
     "test": "node --import tsx --test tests/server.test.ts",
     "test:python": "node scripts/test-python.mjs",
+    "test:plugin": "node --test packages/dsh-plugin-bioinfo/test/*.test.mjs",
+    "test:harness": "node packages/dsh-plugin-bioinfo/test/host-smoke.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json"
   },
   "dependencies": {
     "archiver": "7.0.1",
     "express": "5.1.0",
-    "multer": "2.0.2",
-    "zod": "4.1.12",
+    "lucide-react": "0.468.0",
+    "multer": "2.5.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "lucide-react": "0.468.0"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.2",
-    "pnpm": "10.28.0",
     "@types/archiver": "6.0.3",
     "@types/express": "5.0.5",
     "@types/multer": "2.0.0",
-    "@types/node": "22.10.2",
+    "@types/node": "22.19.0",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
-    "typescript": "5.9.3",
+    "pnpm": "10.28.0",
     "tsx": "4.20.6",
+    "typescript": "5.9.3",
     "vite": "7.2.2"
   }
 }

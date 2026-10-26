@@ -1,0 +1,13 @@
+sample,group,expression
+S01,Control,8.1
+S02,Control,9.2
+S03,Control,7.8
+S04,Control,10.1
+S05,Control,8.9
+S06,Control,9.4
+S01,Treatment,12.5
+S02,Treatment,13.1
+S03,Treatment,11.8
+S04,Treatment,14.2
+S05,Treatment,12.7
+S06,Treatment,13.8
