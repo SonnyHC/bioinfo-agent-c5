@@ -6,7 +6,7 @@
 
 `vercel.json` 为两个接口配置 120 秒上限。账户实际限制以控制台为准；非流式模型请求内部超时 110 秒。深度思考模型可能超时，可换用配置中支持非思考的预设。
 
-`/` 是主界面，`/?view=analysis` 是数据与绘图，`/?view=history` 是运行记录，`/?view=genomes` 是参考基因组。旧 `/workbench` 和 `/workbench/cloud` 链接转入统一绘图页面。已移除的技能、环境、连接路由回到对话首页。
+`/` 是主界面，`/?view=analysis` 是数据与绘图，`/?view=skills` 是数据分析技能商店，`/?view=history` 是运行记录，`/?view=genomes` 是参考基因组。旧 `/workbench` 和 `/workbench/cloud` 链接转入统一绘图页面。已移除的环境、连接路由回到对话首页。技能商店使用浏览器存储，不需要本机助手。
 
 ## 上线验收
 

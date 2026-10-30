@@ -25,6 +25,7 @@
 .chat-conversation{flex:1;min-height:0;display:flex;flex-direction:column}
 .chat-analysis{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
 .chat-shell [hidden]{display:none!important}
+.chat-skill-strip{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--teal);margin:0 4px 10px;flex-wrap:wrap}.chat-skill-strip button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 8px;background:var(--teal-wash)}
 .chat-rail{gap:12px;padding-top:24px}
 .chat-brand{margin-bottom:12px}
 .chat-section-label{padding-top:16px}

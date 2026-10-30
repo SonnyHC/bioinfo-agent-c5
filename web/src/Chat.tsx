@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Plus, Settings2, Square, Upload, X } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
 import { api, importDataset, post } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
 import { requestModel } from './model-api';
@@ -7,6 +7,8 @@ import { list, save } from './storage';
 import { runAgent } from './agent-loop';
 import type { Message, ToolEvent } from './agent-loop';
 import { executeTool, systemPrompt, toolDefinitions, toolLabels } from './agent-tools';
+import { skillCatalog, type AnalysisSkill } from './skill-catalog';
+import { skillPrompt } from './skill-library';
 
 import App from './App';
 import Tutorial from './Tutorial';
@@ -14,8 +16,9 @@ import { appRoute, messageParts, safeAppLink, viewLabels } from './navigation';
 import type { AnalysisView, MainView } from './navigation';
 import './chat.css';
 const ReferenceGenomes = lazy(() => import('./ReferenceGenomes'));
+const SkillStore = lazy(() => import('./SkillStore'));
 
-interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[] }
+interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[]; skillId?: string }
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
 interface ChatDataset {id:string; name:string}
 function recover(previous: Conversation): Conversation {
@@ -40,7 +43,7 @@ function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>vo
 export default function Chat() {
   const initialRoute = appRoute(window.location.pathname + window.location.search);
   const [view, setView] = useState<MainView>(initialRoute.view);
-  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'chat' || initialRoute.view === 'tutorial' || initialRoute.view === 'genomes' ? 'analysis' : initialRoute.view);
+  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'history' ? 'history' : 'analysis');
   const mobileNavigation = useRef<HTMLDialogElement>(null);
   const [conversation, setConversation] = useState<Conversation>(fresh);
   const [history, setHistory] = useState<Conversation[]>([]);
@@ -76,7 +79,7 @@ export default function Chat() {
     const next = appRoute(safe);
     if (push) window.history.pushState(null, '', safe);
     setView(next.view); setRouteKey(safe);
-    if (next.view !== 'chat' && next.view !== 'tutorial' && next.view !== 'genomes') setPanelView(next.view);
+    if (next.view === 'analysis' || next.view === 'history') setPanelView(next.view);
     mobileNavigation.current?.close();
     if (next.view === 'chat' && next.request.dataset) void selectForChat(next.request.dataset, false);
     void refreshData();
@@ -94,6 +97,11 @@ export default function Chat() {
     } catch (reason) {setError(reason instanceof Error ? reason.message : '无法打开此数据。');setView('chat');}
   }
   function newChat() { setConversation(fresh()); setError(''); setInput(''); setSelectedDataset(null); navigate('chat'); }
+  function useSkill(skill: AnalysisSkill) {
+    if (started.current || loading) return;
+    setConversation({...fresh(), skillId:skill.id}); setError(''); setSelectedDataset(null);
+    setInput(skill.starter); navigate('chat');
+  }
   async function refreshData() {
     const data = await api<{datasets:ChatDataset[]}>('/datasets');
     setDatasets(data.datasets);
@@ -159,7 +167,8 @@ export default function Chat() {
         messages: current.messages, signal,
         request: async messages => {
           setProgress('正在分析');
-          return requestModel(activeSettings.current, [{role:'system',content:systemPrompt},...messages], toolDefinitions, signal);
+          const workflows = await skillPrompt(current.skillId);
+          return requestModel(activeSettings.current, [{role:'system',content:`${systemPrompt}\n${workflows}`},...messages], toolDefinitions, signal);
         },
         execute: (name, args) => executeTool(name, args, signal),
         changed: async (messages, event) => {
@@ -206,7 +215,7 @@ export default function Chat() {
     <a href="/" className="chat-brand" onClick={event=>{event.preventDefault();navigate('chat');}}><Dna size={24}/><strong>bioinfobuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
@@ -229,6 +238,7 @@ export default function Chat() {
       <div className="chat-compose-area">
         {!apiKey && <div className="chat-connection"><span>选择模型并填写 API Key，即可开始对话。</span><button className="text-link" onClick={openSettings}>配置 API ↗</button></div>}
         {error && <div className="chat-error" role="alert"><span>{error}</span><button className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15}/></button></div>}
+        {conversation.skillId && <div className="chat-skill-strip"><Package size={14}/><span>本轮技能：{skillCatalog.find(skill => skill.id === conversation.skillId)?.name ?? conversation.skillId}</span><button disabled={busy} onClick={()=>navigate('skills')}>管理技能</button><button disabled={busy} aria-label="取消本轮指定技能" onClick={()=>{const next = {...conversation,skillId:undefined};if(next.messages.length)void persist(next).catch(reason=>setError(String(reason.message)));else setConversation(next);}}>取消指定<X size={12}/></button></div>}
         {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前选择' : `${datasets.length} 份数据`}</span><a href={`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();showRoute(`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
@@ -239,6 +249,7 @@ export default function Chat() {
       </section>
       {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
+      {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
       {(view==='analysis'||view==='history')&&<section className="chat-analysis" aria-label={viewLabels[panelView]}><App key={routeKey} embedded initialHistory={view==='history'} onDataset={(id:string)=>void selectForChat(id)}/></section>}
     </main>
     <dialog ref={dialog} className="model-dialog" onCancel={closeSettings}>

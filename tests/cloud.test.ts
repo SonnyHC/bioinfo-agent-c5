@@ -120,7 +120,8 @@ test('main navigation restores legacy plan/run links and preserves chat dataset 
   assert.deepEqual(appRoute(`/?dataset=${recordId}`),{view:'chat',request:{dataset:recordId}});
   assert.deepEqual(appRoute(`/?view=analysis&dataset=${recordId}`),{view:'analysis',request:{dataset:recordId}});
   assert.deepEqual(appRoute('/?view=environments'),{view:'chat',request:{}});
-  for(const view of ['connection','skills','environments']) assert.equal(safeAppLink('/?view='+view),undefined);
+  for(const view of ['connection','environments']) assert.equal(safeAppLink('/?view='+view),undefined);
+  assert.deepEqual(appRoute('/?view=skills'),{view:'skills',request:{}});
   assert.equal(safeAppLink('/?view=tutorial'),'/?view=tutorial');
   assert.deepEqual(appRoute('/?view=tutorial'),{view:'tutorial',request:{}});
   assert.deepEqual(messageParts(`查看 [原结果](/workbench?run=${recordId}) 和 [历史](/?view=history)`),[

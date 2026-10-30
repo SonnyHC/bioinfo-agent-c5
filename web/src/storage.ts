@@ -1,14 +1,16 @@
 // User files and outputs are scoped to this browser origin, never a server home.
 const DATABASE = 'bioinfobuddy-browser-v1';
-const STORES = ['datasets', 'plans', 'runs', 'chats'] as const;
+const STORES = ['datasets', 'plans', 'runs', 'chats', 'skills'] as const;
 export type Store = typeof STORES[number];
 let opening: Promise<IDBDatabase> | undefined;
 
 function database() {
   opening ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 1);
+    const request = indexedDB.open(DATABASE, 2);
     request.onupgradeneeded = () => {
-      for (const name of STORES) request.result.createObjectStore(name, { keyPath: 'id' });
+      for (const name of STORES) {
+        if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name, { keyPath: 'id' });
+      }
     };
     request.onsuccess = () => {
       request.result.onversionchange = () => { request.result.close(); opening = undefined; };
@@ -45,4 +47,8 @@ export async function read<T>(store: Store, id: string): Promise<T> {
 export async function list<T extends { createdAt: string }>(store: Store): Promise<T[]> {
   const values = await operation<T[]>(store, 'readonly', table => table.getAll());
   return values.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function remove(store: Store, id: string): Promise<void> {
+  await operation(store, 'readwrite', table => table.delete(id));
 }
