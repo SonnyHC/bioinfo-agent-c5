@@ -1,6 +1,6 @@
 import { safeAppLink } from './navigation';
 export interface ToolCall { id: string; type: 'function'; function: { name: string; arguments: string } }
-export interface Message { role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; reasoning_content?: string }
+export interface Message { role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; reasoning_content?: string; provider?: string; model?: string }
 export interface ToolEvent { id: string; name: string; state: 'running' | 'done' | 'error'; detail?: string; url?: string }
 
 export async function runAgent(options: {

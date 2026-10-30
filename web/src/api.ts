@@ -1,9 +1,7 @@
 import { unzipSync } from 'fflate';
 import { list, read, save } from './storage';
 import type { Dataset, Plan, Run } from './types';
-import wide from '../../examples/wide.csv?raw';
-import long from '../../examples/long.csv?raw';
-import expression from '../../examples/expression.csv?raw';
+import examples from './data/examples.json';
 
 type SavedDataset = Dataset & { file: Blob };
 type SavedRun = Omit<Run, 'artifacts'> & { files: { name: string; blob: Blob }[] };
@@ -90,7 +88,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   else if (/^\/datasets\/[^/]+$/.test(path)) result = publicDataset(await read<SavedDataset>('datasets', path.split('/')[2]));
   else if (/^\/examples\/(wide|long|expression)$/.test(path) && method === 'POST') {
     const id = path.split('/')[2] as 'wide' | 'long' | 'expression';
-    result = await importDataset(new File([{ wide, long, expression }[id]], `synthetic-${id}.csv`, { type: 'text/csv' }));
+    result = await importDataset(new File([examples[id]], `synthetic-${id}.csv`, { type: 'text/csv' }));
   } else if (path === '/plans' && method === 'POST') {
     const dataset = await read<SavedDataset>('datasets', body.datasetId);
     const config = Object.fromEntries(['chart', 'layout', 'x', 'y', 'group', 'valueColumns', 'missing', 'title', 'xLabel', 'yLabel'].filter(key => body[key] !== undefined).map(key => [key, body[key]]));

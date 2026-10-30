@@ -3,20 +3,17 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "网站与本地助手协作的科研绘图 Agent",
+  "description": "通过国内模型 API 进行生信对话与网页科研绘图",
   "engines": {
     "node": "^22.18.0 || >=24.2.0"
   },
   "scripts": {
-    "dev": "vite --config web/vite.config.ts --host 127.0.0.1 --port 5173 --strictPort",
+    "dev": "node scripts/web-dev.mjs",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
-    "start": "vite preview --config web/vite.config.ts --host 127.0.0.1 --port 5173 --strictPort",
-    "dev:cloud": "node scripts/web-dev.mjs",
-    "start:cloud": "node scripts/web-dev.mjs --production",
-    "companion": "node companion/server.mjs",
-    "setup:companion": "node scripts/check-companion.mjs",
-    "test:companion": "node --test tests/companion.test.mjs",
+    "start": "node scripts/web-dev.mjs --production",
+    "dev:cloud": "node scripts/web-dev.mjs --analysis",
+    "start:cloud": "node scripts/web-dev.mjs --analysis --production",
     "agent": "node scripts/agent.mjs",
     "setup:python": "node scripts/setup-python.mjs",
     "test": "node --import tsx --test tests/server.test.ts",
@@ -26,7 +23,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "dev:legacy": "tsx watch src/server.ts",
     "build:legacy": "tsc -p tsconfig.json",
-    "test:cloud": "node --import tsx --test tests/cloud.test.ts"
+    "test:cloud": "node --import tsx --test tests/cloud.test.ts tests/model-api.test.ts tests/reference-genomes.test.ts"
   },
   "dependencies": {
     "archiver": "7.0.1",

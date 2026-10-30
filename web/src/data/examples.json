@@ -1,0 +1,5 @@
+{
+  "wide": "sample,Control,Treatment\nS01,8.1,12.5\nS02,9.2,13.1\nS03,7.8,11.8\nS04,10.1,14.2\nS05,8.9,12.7\nS06,9.4,13.8\n",
+  "long": "sample,group,expression\nS01,Control,8.1\nS02,Control,9.2\nS03,Control,7.8\nS04,Control,10.1\nS05,Control,8.9\nS06,Control,9.4\nS01,Treatment,12.5\nS02,Treatment,13.1\nS03,Treatment,11.8\nS04,Treatment,14.2\nS05,Treatment,12.7\nS06,Treatment,13.8\n",
+  "expression": "gene,Control_1,Control_2,Control_3,Treatment_1,Treatment_2,Treatment_3\nGENE_A,8.1,9.2,7.8,12.5,13.1,11.8\nGENE_B,12.2,13.0,11.7,8.0,8.8,9.1\nGENE_C,4.3,4.1,4.7,4.4,4.6,4.2\nGENE_D,6.7,7.2,6.4,10.1,11.0,10.7\nGENE_E,15.2,14.8,15.6,12.3,12.7,13.1\nGENE_F,2.1,2.3,1.9,5.5,5.2,5.8\n"
+}

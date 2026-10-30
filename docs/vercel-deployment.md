@@ -1,77 +1,23 @@
-# Vercel 部署 bioinfobuddy
+# 部署网站与 API
 
-本说明对应 0.3.0“网站 + 本地助手”版本，目标域名为 `bioinfobuddy.com.cn`。部署人员发布网页与域名；使用者在自己的电脑启动本地助手。以下是交接步骤，不能作为线上部署已经完成的证明。
+使用仓库根目录，构建命令 `npm run build`，输出 `dist/client`。Vercel 同时部署 `api/chat.js` 与 `api/analysis.py`；Python 依赖在根目录 `requirements.txt`，无需启动客户端、配对进程或常驻本机服务。
 
-## 1. 导入 GitHub 仓库
+不配置共享模型 Key，访问者在网页填写自己的国内模型 API Key。本站代码不记录或持久保存密钥；部署方也应避免启用包含请求正文的日志。模型请求通过站点转发，因此站点运行区域必须能访问配置中的官方接口。
 
-将待发布版本推送到仓库后，在 Vercel 选择 Add New → Project → Import Git Repository。设置以仓库 `vercel.json` 为准：
+`vercel.json` 为两个接口配置 120 秒上限。账户实际限制以控制台为准；非流式模型请求内部超时 110 秒。深度思考模型可能超时，可换用配置中支持非思考的预设。
 
-- Root Directory：仓库根目录，不是 `web`。
-- Framework：Vite。
-- Build Command：`npm run build`。
-- Output Directory：`dist/client`。
-- Node.js：24.x。
-- 保留的 Python 云表格接口使用 `.python-version` 中的 Python 3.12 与根目录 `requirements.txt`。
-- 不设置站点共享模型 Key；访问者在网页中填写自己的 Key。
+`/` 是主界面，`/?view=analysis` 是数据与绘图，`/?view=history` 是运行记录，`/?view=genomes` 是参考基因组。旧 `/workbench` 和 `/workbench/cloud` 链接转入统一绘图页面。已移除的技能、环境、连接路由回到对话首页。
 
-`companion/server.mjs` 是用户电脑上的常驻服务，**不作为 Vercel 函数启动**。网页通过本机 `127.0.0.1:4317` 与它通信。无需在 Vercel 启动 uv、renv 或完整 DeepSeek Harness。
+## 上线验收
 
-仓库仍保留 `/api/chat` 与 `/api/analysis` 两个无状态接口，供旧云表格模式使用。它们的仓库配置为最长 120 秒，是否可用需用实际账户与部署日志验证；默认本地助手绘图不依赖 Vercel 执行 Python。
+1. 构建和类型检查通过，确认 `/api/chat` 与 `/api/analysis` 均已部署。
+2. 未配置模型时打开首页、教程和参考基因组，无安装或配对要求。
+3. 用有效 Key 验证国内模型的普通回答和完整工具轮次；供应商权限、余额、限流和不同地域需实际验证。
+4. 用合成 CSV / XLSX 导入，预览、勾选确认并生成图表；下载复现包、刷新历史、重新修改参数。确认表格上传提示可见。
+5. 检查窄屏导航、API 配置及数据与绘图；换浏览器后不会自动获得旧密钥、文件或记录。
 
-新版主入口始终为 AI 对话界面及其主侧边栏，数据分析技能、分析环境、数据与绘图及运行记录使用根路径查询参数，例如 `/?view=environments`、`/?view=analysis&run=…`。`vercel.json` 将 `/`、`/workbench` 及其尾斜杠版本重写到同一 SPA；旧 `/workbench?plan=…`、`/workbench?run=…` 由前端转入统一主界面，并保留记录参数。`/?dataset=…` 继续支持聊天数据上下文。`/workbench/cloud` 及尾斜杠仅为旧云模式的显式兼容入口，不替代新版主界面。
+表格接口限制 2 MB，使用请求独立的临时目录处理，返回图表后清理；文件和结果保存在浏览器。本站不提供 FASTQ、H5AD 或 R 执行服务。
 
-## 2. 验证预览地址与本地助手
+## 域名
 
-1. 从待发布提交准备一份本地助手，执行 `npm ci --ignore-scripts` 和 `npm run setup:companion`。
-2. 将实际预览地址加入助手允许列表后启动。例如 macOS / Linux：
-
-   ```bash
-   BIOINFO_COMPANION_ORIGINS="https://your-project.vercel.app" npm run companion
-   ```
-
-   Windows PowerShell：
-
-   ```powershell
-   $env:BIOINFO_COMPANION_ORIGINS = "https://your-project.vercel.app"
-   npm run companion
-   ```
-
-   把示例域名替换为控制台给出的实际 origin，不包含路径。每个预览域名需明确配置；不会默认允许所有 `*.vercel.app` 网站。
-
-3. 在该 HTTPS 网页的主侧边栏进入“本地助手”，输入配对码，并允许浏览器访问本机网络。
-4. 在“数据分析技能”安装基础科研绘图技能，确认技能状态与环境状态分别显示；在“分析环境”安装对应环境，核对真实安装阶段、日志和失败重试。导入仓库合成表格，检查字段、预览转换、确认运行，核对图表与下载产物。
-5. 从该结果打开“调整参数”，修改适用的外观参数，再修改一项数据处理参数；确认原预览失效，重新预览和确认后才能生成。核对新图自动保存为独立版本，下载文件包含新参数与来源记录，旧图和源文件仍存在。自有 R 脚本不应出现无实际效果的通用外观控件，执行仍须确认信任。
-6. 刷新网页，核对助手数据、运行历史及编辑后的版本能恢复；直接打开新根路径链接与旧 `/workbench?plan=…`、`?run=…` 链接，验证它们均进入主侧边栏界面并恢复正确记录。核对聊天 `/?dataset=…` 上下文。重启助手后，验证旧凭据失效、重新配对后记录仍存在。“参考基因组”应只有预留入口，没有内容或下载动作。
-7. 安装并分别验收 FASTQ、H5AD 环境；使用合成文件检查参数限制、参数编辑和结果。R 任务需要本机 R、renv 环境和明确的脚本信任确认。
-8. 配置一个支持工具调用的真实模型和有效 Key，完成自然语言 → 数据检查 → 待确认方案 → 本地运行 → 结果核对。测试替身或 UI 可点击不能替代这个步骤。
-9. 用目标用户的浏览器与网络重复“HTTPS 网页连接本机助手”的流程，并检查桌面与窄屏的导航、编辑面板和下载按钮；另一个浏览器没有自动获得配对凭据或聊天数据。
-
-浏览器的本地网络访问权限会影响第 3 步，详见 [Chrome 官方说明](https://developer.chrome.com/blog/local-network-access)。仅验证 `localhost` 页面成功，不能推断正式 HTTPS 页面也能连接助手。
-
-旧云表格模式如继续提供，也应单独验收：上传上限 2 MiB；原始文件会发送到站点 Python 接口；请求间不依赖服务器文件状态。它与本地助手的数据目录和能力范围不同。
-
-## 3. 绑定域名
-
-在 Vercel 项目 Settings → Domains 添加 `bioinfobuddy.com.cn`，按实际需求配置 `www` 及跳转方向。以 Vercel 控制台给出的当前 DNS 记录值为准，不照抄教程中的旧 IP 或 CNAME。[Vercel 官方说明](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
-
-按原教程使用 Cloudflare 时：
-
-1. 添加已购买的域名，核对并保留仍在使用的邮件及其他业务记录。
-2. 填写 Vercel 给出的 A / CNAME 记录，并选择 DNS only。
-3. 在阿里云域名控制台将名称服务器改为 Cloudflare 为该域名实际分配的地址。
-4. 等待 Cloudflare 激活，再确认 Vercel 域名有效、HTTPS 证书可用。
-5. 使用正式域名重复配对、技能与环境安装、导入、绘图、调参、重新生成、下载、历史恢复和真实模型验收。
-
-也可以保留阿里云 DNS，直接填写 Vercel 要求的记录。根据已选路径操作，不同时混改两套权威解析。Cloudflare 的 DNS only 只提供解析，网页流量仍直接访问 Vercel；目标地区的可访问性需实测。[Cloudflare 官方说明](https://developers.cloudflare.com/dns/proxy-status/)
-
-正式域名已列入本地助手默认允许来源；若正式使用另一个域名，需要用 `BIOINFO_COMPANION_ORIGINS` 添加精确 origin 并重启助手。
-
-## 4. 发布助手和保留数据
-
-当前助手是源码版，没有签名的 `.dmg` / `.exe`。发布网页时同时提供准确的仓库版本与 [助手使用说明](local-companion.md)，不能只给网页地址就声称所有用户可直接运行分析。日后制作安装包应独立验证安装、升级、卸载及平台兼容性。
-
-浏览器存储按 origin 隔离：本地预览、Vercel 网址和正式域名分别保存聊天及设置，换域名后需重新配对。助手的文件在同一电脑、同一数据目录内保留，不随网页 origin 改变；不同设备不会自动同步。迁移前下载重要图表、分析记录和聊天 JSON。
-
-## 5. 发布结果应记录
-
-记录提交 SHA、Vercel 部署 URL、构建与函数结果、最终域名的 HTTPS 状态、测试浏览器与系统，以及真实模型和本地助手的端到端结果。当前已执行和待验证事项见 [验证记录](validation.md)。
+在 Vercel 项目 Settings → Domains 添加 `bioinfobuddy.com.cn`，按控制台显示的当前记录配置 DNS，并核对 HTTPS。具体步骤见 [Vercel 官方域名说明](https://vercel.com/docs/domains/working-with-domains/add-a-domain)。本地构建通过不代表已经发布或域名已生效。

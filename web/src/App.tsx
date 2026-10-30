@@ -109,7 +109,7 @@ function FieldSelect({ label, value, onChange, columns, optional = false, emptyL
   </select></label>;
 }
 
-export default function App() {
+export default function App({embedded = false, initialHistory = false, onDataset}: {embedded?:boolean;initialHistory?:boolean;onDataset?:(id:string)=>void}) {
   const [status, setStatus] = useState<ServiceStatus | null>(null);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [dataset, setDataset] = useState<Dataset | null>(null);
@@ -119,7 +119,7 @@ export default function App() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [run, setRun] = useState<Run | null>(null);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('data');
+  const [tab, setTab] = useState<Tab>(initialHistory ? 'history' : 'data');
   const [busy, setBusy] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -158,6 +158,9 @@ export default function App() {
         if (linkedPlan.datasetId !== sourceData.id) throw new Error('方案与数据不匹配，请重新选择方案。');
         applyPlan(linkedPlan, sourceData);
         setTab('plan');
+      } else if (search.get('dataset')) {
+        const selected = await api<Dataset>(`/datasets/${encodeURIComponent(search.get('dataset')!)}`);
+        selectDataset(selected);
       } else if (data.datasets.length) {
         setDataset(data.datasets[0]); setConfig(configFor(data.datasets[0]));
       }
@@ -291,12 +294,12 @@ export default function App() {
   const imageUrl = artifact('chart.svg') ?? artifact('chart.png');
   const chartStep = run?.status === 'completed' ? 3 : plan ? 2 : dataset ? 1 : 0;
 
-  return <div className="app-shell">
-    <header className="topbar">
+  return <div className={`app-shell ${embedded ? 'embedded-workbench' : ''}`}>
+    {!embedded && <header className="topbar">
       <a className="brand" href="/" aria-label="返回对话"><span className="brand-symbol"><Dna size={23} strokeWidth={1.65}/></span><span className="brand-name">bioinfobuddy</span></a>
       <div className="project-name"><span className="header-divider"/><FlaskConical size={16}/><span>绘图工具</span></div>
       <div className="topbar-actions"><span className={`service-state ${status?.pythonReady ? 'ready' : ''}`}><span className="status-dot"/>{loading ? '连接中' : status?.pythonReady ? '绘图就绪' : '待连接'}</span><button className="icon-button help-button" title="使用指南" aria-label="打开使用指南" onClick={() => setDialog('help')}><CircleHelp size={19}/></button><a className="button agent-button" href="/"><Workflow size={16}/><span>返回对话</span><ArrowUpRight size={15}/></a></div>
-    </header>
+    </header>}
 
     <div className="workspace">
       <aside className="sidebar" aria-label="数据与图表模板">
@@ -305,7 +308,7 @@ export default function App() {
           <div className="section-heading"><h2><Database size={15}/>数据文件</h2><span className="counter">{datasets.length}</span></div>
           <input ref={fileRef} className="sr-only" type="file" accept=".csv,.tsv,.xlsx" onChange={onFile} disabled={isBusy} aria-label="上传 CSV、TSV 或 Excel 文件"/>
           <button className={`upload-zone ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()} disabled={isBusy} onDragOver={event => {event.preventDefault();setDragging(true);}} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
-            <Upload size={19}/><strong>导入数据</strong><span>CSV / TSV / Excel</span><small>单个文件不超过 {status?.maxUploadMB ?? 2} MB</small>
+            <Upload size={19}/><strong>导入数据</strong><span>CSV / TSV / Excel</span><small>最大 {status?.maxUploadMB ?? 2} MB · 上传至本站分析服务</small>
           </button>
           {datasets.length > 0 && <div className="dataset-list">{datasets.map(item => <button key={item.id} className={`dataset-item ${dataset?.id === item.id ? 'active' : ''}`} onClick={() => selectDataset(item)} disabled={isBusy} title={item.name}><FileSpreadsheet size={16}/><span><strong>{item.name}</strong><small>{item.rows.toLocaleString()} 行 · {item.columns.length} 列</small></span>{dataset?.id === item.id && <span className="selection-dot"/>}</button>)}</div>}
         </section>
@@ -320,7 +323,7 @@ export default function App() {
         <div className="sidebar-bottom"><span className="small-mark"><Dna size={15}/>BIOINFOBUDDY</span><span>v{status?.version ?? '0.1.0'}</span></div>
       </aside>
 
-      <main className="main-panel" id="main">
+      <section className="main-panel" aria-label="绘图工作区">
         <div className="workspace-heading"><div><div className="breadcrumb">科研分析 <ChevronRight size={12}/> 数据绘图</div><h1>{dataset ? dataset.name : '从一份数据开始'}<span className="file-label">{dataset ? dataset.name.split('.').pop()?.toUpperCase() : 'NEW ANALYSIS'}</span></h1><p>{dataset ? <>{dataset.rows.toLocaleString()} 行数据<span className="dot-separator">·</span>{dataset.columns.length} 个字段</> : '导入数据并选择图表。'}</p></div><span className="workspace-number">01<span>/ WORKBENCH</span></span></div>
         <div className="workflow-strip" aria-label="分析流程">{['导入数据','确认字段','检查方案','生成与导出'].map((label,index) => <div key={label} className={`workflow-step ${index <= chartStep ? 'reached' : ''} ${index === chartStep ? 'current' : ''}`}><span className="step-number">{index < chartStep ? <Check size={12}/> : `0${index+1}`}</span><span>{label}</span>{index < 3 && <ChevronRight className="step-arrow" size={13}/>}</div>)}</div>
         {error && <div className="error-banner" role="alert"><AlertTriangle size={17}/><span>{formatAnalysisText(error)}</span><button className="icon-button" onClick={() => setError('')} aria-label="关闭错误提示"><X size={16}/></button></div>}
@@ -360,7 +363,7 @@ export default function App() {
           </>}
         </div>
         <footer className="workbench-footer"><span><BarChart3 size={13}/>绘图工具</span><span>{busy ? <><LoaderCircle size={12} className="spinning"/>{busy}</> : <><span className="status-dot"/>{loading ? '连接中' : status?.pythonReady ? '就绪' : '待连接'}</>}</span></footer>
-      </main>
+      </section>
 
       <aside className="parameters" aria-label="图表参数">
         <div className="parameter-header"><Settings2 size={17}/><h2>绘图设置</h2><span>CONFIG</span></div>
@@ -381,7 +384,7 @@ export default function App() {
           <details className="label-options"><summary>标题与坐标轴<span>可选</span></summary><label className="field"><span>图表标题</span><input value={config.title} onChange={event => changeConfig({title:event.target.value})} placeholder="使用默认标题" maxLength={160}/></label><label className="field"><span>X 轴名称</span><input value={config.xLabel} onChange={event => changeConfig({xLabel:event.target.value})} placeholder="使用字段名称" maxLength={100}/></label><label className="field"><span>Y 轴名称</span><input value={config.yLabel} onChange={event => changeConfig({yLabel:event.target.value})} placeholder="使用字段名称" maxLength={100}/></label></details>
         </fieldset>
         <div className="parameter-action"><button className="button primary full-width" onClick={() => void previewPlan()} disabled={!dataset || isBusy}>{busy ? <LoaderCircle size={16} className="spinning"/> : <Layers size={16}/>}预览转换方案<ArrowRight size={15}/></button><p>查看转换后的数据。</p></div>
-        <div className="agent-note"><Workflow size={17}/><div><strong>继续分析</strong><a className="text-button" href="/">返回对话<ArrowUpRight size={13}/></a></div></div>
+        <div className="agent-note"><Workflow size={17}/><div><strong>继续分析</strong><button className="text-button" disabled={!dataset || isBusy} onClick={()=>dataset&&onDataset?.(dataset.id)}>让 AI 帮我选参数<ArrowUpRight size={13}/></button></div></div>
       </aside>
     </div>
 

@@ -1,0 +1,176 @@
+{
+  "checkedAt": "2026-10-30",
+  "providers": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "model": "deepseek-flash",
+      "models": [
+        "deepseek-flash",
+        "deepseek-v4-pro"
+      ],
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "keys": "https://platform.deepseek.com/api_keys",
+      "docs": "https://api-docs.deepseek.com/api/create-chat-completion/",
+      "note": "使用标准 API Key。旧 deepseek-chat 配置自动迁移至 deepseek-flash。",
+      "requestDefaults": {
+        "max_tokens": 8192
+      },
+      "modelOverrides": {
+        "deepseek-flash": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "deepseek-v4-pro": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "reasoning": true
+    },
+    "qwen": {
+      "name": "通义千问 · 北京",
+      "model": "qwen-plus",
+      "models": [
+        "qwen-plus",
+        "qwen3.8-max"
+      ],
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "keys": "https://bailian.console.aliyun.com/",
+      "docs": "https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope",
+      "note": "使用北京地域按量付费密钥；建议填写业务空间 ID，留空时使用官方兼容域名。",
+      "requestDefaults": {
+        "max_tokens": 4096
+      },
+      "modelOverrides": {
+        "qwen-plus": {
+          "enable_thinking": false
+        },
+        "qwen3.8-max": {
+          "enable_thinking": false
+        }
+      },
+      "reasoning": false
+    },
+    "glm": {
+      "name": "智谱 GLM",
+      "model": "glm-5.3",
+      "models": [
+        "glm-5.3",
+        "glm-5.2"
+      ],
+      "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "keys": "https://bigmodel.cn/",
+      "docs": "https://docs.bigmodel.cn/cn/api/introduction",
+      "note": "使用标准 API 密钥，编码套餐的专属密钥不适用于此入口。GLM-5.3 必须开启思考。",
+      "requestDefaults": {
+        "max_tokens": 16384
+      },
+      "modelOverrides": {
+        "glm-5.3": {},
+        "glm-5.2": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "reasoning": true
+    },
+    "kimi": {
+      "name": "月之暗面 Kimi",
+      "model": "kimi-k3.1-pro",
+      "models": [
+        "kimi-k3.1-pro",
+        "kimi-k3.1-pro-highspeed"
+      ],
+      "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+      "keys": "https://platform.kimi.com/",
+      "docs": "https://platform.kimi.com/docs/api/chat",
+      "note": "使用开放平台 API Key；保留工具调用所需的 reasoning_content。",
+      "requestDefaults": {
+        "max_tokens": 16384
+      },
+      "modelOverrides": {
+        "kimi-k3.1-pro": {},
+        "kimi-k3.1-pro-highspeed": {}
+      },
+      "reasoning": true
+    },
+    "doubao": {
+      "name": "豆包 · 火山方舟",
+      "model": "doubao-seed-2-1-lite-260915",
+      "models": [
+        "doubao-seed-2-1-lite-260915",
+        "doubao-seed-2-1-pro-260915"
+      ],
+      "endpoint": "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      "keys": "https://console.volcengine.com/ark",
+      "docs": "https://docs.volcengine.com/docs/ark/chat-api?lang=zh",
+      "note": "使用方舟 API Key；模型字段也可填写已创建的 ep- 推理接入点 ID。",
+      "requestDefaults": {
+        "max_tokens": 4096
+      },
+      "modelOverrides": {
+        "doubao-seed-2-1-lite-260915": {
+          "thinking": {
+            "type": "disabled"
+          }
+        },
+        "doubao-seed-2-1-pro-260915": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "reasoning": true
+    },
+    "minimax": {
+      "name": "MiniMax",
+      "model": "MiniMax-M3.1-Flash",
+      "models": [
+        "MiniMax-M3.1-Flash",
+        "MiniMax-M3"
+      ],
+      "endpoint": "https://api.minimax.cn/v1/chat/completions",
+      "keys": "https://platform.minimax.cn/",
+      "docs": "https://platform.minimax.cn/docs/api-reference/text-openai-api",
+      "note": "使用中国站标准 API Key。此模型强制思考，思考内容与回答分开处理。",
+      "requestDefaults": {
+        "max_completion_tokens": 16384,
+        "reasoning_split": true
+      },
+      "modelOverrides": {
+        "MiniMax-M3.1-Flash": {
+          "reasoning_effort": "low"
+        },
+        "MiniMax-M3": {
+          "thinking": {
+            "type": "disabled"
+          }
+        }
+      },
+      "reasoning": true
+    },
+    "baidu": {
+      "name": "百度文心 · 千帆",
+      "model": "ernie-4.5-turbo-128k",
+      "models": [
+        "ernie-4.5-turbo-128k",
+        "ernie-4.5-turbo-32k"
+      ],
+      "endpoint": "https://qianfan.baidubce.com/v2/chat/completions",
+      "keys": "https://console.bce.baidu.com/qianfan/",
+      "docs": "https://cloud.baidu.com/doc/qianfan-api/s/3m7of64lb",
+      "note": "使用千帆 API Key（支持 bce-v3/ 格式），不是旧版 Access Key / Secret Key。",
+      "requestDefaults": {
+        "max_tokens": 4096
+      },
+      "modelOverrides": {
+        "ernie-4.5-turbo-128k": {},
+        "ernie-4.5-turbo-32k": {}
+      },
+      "reasoning": false
+    }
+  }
+}

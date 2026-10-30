@@ -1,36 +1,23 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, Laptop, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
-import { companion, companionFetch, companionConnected } from './companion';
+import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Plus, Settings2, Square, Upload, X } from 'lucide-react';
+import { api, importDataset, post } from './api';
+import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
+import { requestModel } from './model-api';
 import { list, save } from './storage';
 import { runAgent } from './agent-loop';
 import type { Message, ToolEvent } from './agent-loop';
 import { executeTool, systemPrompt, toolDefinitions, toolLabels } from './agent-tools';
 
-import AnalysisPanel from './AnalysisPanel';
+import App from './App';
 import Tutorial from './Tutorial';
-import { appRoute, messageParts, OPEN_ANALYSIS, safeAppLink, viewLabels } from './navigation';
+import { appRoute, messageParts, safeAppLink, viewLabels } from './navigation';
 import type { AnalysisView, MainView } from './navigation';
 import './chat.css';
 const ReferenceGenomes = lazy(() => import('./ReferenceGenomes'));
 
 interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[] }
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
-const KEY = 'bioinfobuddy-api-key';
-const MODEL = 'bioinfobuddy-model';
-const PROVIDER = 'bioinfobuddy-provider';
-const providers = {
-  deepseek: {name:'DeepSeek', model:'deepseek-chat', keys:'https://platform.deepseek.com/api_keys'},
-  openai: {name:'OpenAI', model:'gpt-4.1-mini', keys:'https://platform.openai.com/api-keys'},
-  qwen: {name:'通义千问（北京）', model:'qwen-plus', keys:'https://bailian.console.aliyun.com/'},
-};
-type Provider = keyof typeof providers;
-interface ChatDataset {id:string; name:string; kind:string}
-function savedSettings(provider:Provider) {
-  const suffix = ':' + provider;
-  const local = localStorage.getItem(KEY + suffix) || (provider === 'deepseek' ? localStorage.getItem(KEY) : null);
-  const key = local || sessionStorage.getItem(KEY + suffix) || (provider === 'deepseek' ? sessionStorage.getItem(KEY) : '') || '';
-  return {key, remember:!!local, model:localStorage.getItem(MODEL + suffix) || (provider === 'deepseek' ? localStorage.getItem(MODEL) : '') || providers[provider].model};
-}
+interface ChatDataset {id:string; name:string}
 function recover(previous: Conversation): Conversation {
   const messages = [...previous.messages];
   const incomplete = messages.findIndex((m, i) => m.tool_calls?.some(call => !messages.slice(i + 1).some(item => item.role === 'tool' && item.tool_call_id === call.id)));
@@ -60,9 +47,14 @@ export default function Chat() {
   const [datasets, setDatasets] = useState<ChatDataset[]>([]);
   const [input, setInput] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('deepseek-chat');
+  const [model, setModel] = useState(providers.deepseek.model);
   const [provider, setProvider] = useState<Provider>('deepseek');
-  const [connected, setConnected] = useState(false);
+  const [workspace, setWorkspace] = useState('');
+  const activeSettings = useRef<ModelSettings>({provider:'deepseek',key:'',model:providers.deepseek.model,workspace:'',remember:false});
+  const [routeKey,setRouteKey] = useState(window.location.search);
+  function restoreSettings(value:ModelSettings) {setProvider(value.provider);setApiKey(value.key);setModel(value.model);setWorkspace(value.workspace);setRemember(value.remember);}
+  function openSettings() {restoreSettings(activeSettings.current);setError('');setSettings(true);}
+  function closeSettings() {restoreSettings(activeSettings.current);setSettings(false);setError('');}
   const [selectedDataset, setSelectedDataset] = useState<ChatDataset|null>(null);
   const requestedDataset = useRef(new URLSearchParams(window.location.search).get('dataset'));
   const preparedRequest = useRef(false);
@@ -83,27 +75,18 @@ export default function Chat() {
     if (!safe) return;
     const next = appRoute(safe);
     if (push) window.history.pushState(null, '', safe);
-    setView(next.view);
+    setView(next.view); setRouteKey(safe);
     if (next.view !== 'chat' && next.view !== 'tutorial' && next.view !== 'genomes') setPanelView(next.view);
     mobileNavigation.current?.close();
-    if (next.view === 'analysis' && Object.keys(next.request).length) window.dispatchEvent(new CustomEvent(OPEN_ANALYSIS, {detail:next.request}));
     if (next.view === 'chat' && next.request.dataset) void selectForChat(next.request.dataset, false);
     void refreshData();
   }
   function navigate(next:MainView) { showRoute(next === 'chat' ? '/' : `/?view=${next}`); }
-  // The panel has already loaded its requested record. Do not emit a second open
-  // event or push a route while restoring a Back/Forward/deep-link destination.
-  function navigateFromPanel(next:AnalysisView) {
-    const current = appRoute(window.location.pathname + window.location.search);
-    if (current.view !== next) window.history.pushState(null, '', `/?view=${next}`);
-    setView(next); setPanelView(next); mobileNavigation.current?.close();
-    void refreshData();
-  }
   async function selectForChat(id: string, push = true) {
     try {
-      const selected = await companion<ChatDataset>(`/datasets/${encodeURIComponent(id)}`);
+      const selected = await api<ChatDataset>(`/datasets/${encodeURIComponent(id)}`);
       setSelectedDataset(selected); setError('');
-      setInput(`请先检查本地文件「${selected.name}」（数据 ID：${selected.id}），帮我选择适合的图例和参数，并生成待确认的转换方案。`);
+      setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），帮我选择适合的图例和参数，并生成待确认的转换方案。`);
       requestedDataset.current = id; preparedRequest.current = true;
       setView('chat'); mobileNavigation.current?.close();
       if (push) window.history.pushState(null, '', `/?dataset=${encodeURIComponent(id)}`);
@@ -112,19 +95,14 @@ export default function Chat() {
   }
   function newChat() { setConversation(fresh()); setError(''); setInput(''); setSelectedDataset(null); navigate('chat'); }
   async function refreshData() {
-    if (!companionConnected()) {setConnected(false); setDatasets([]); return;}
-    try {
-      const status = await companion<{datasets:ChatDataset[]}>('/status'); setDatasets(status.datasets); setConnected(true);
-      if (requestedDataset.current && !preparedRequest.current) {
-        const selected = status.datasets.find(item=>item.id===requestedDataset.current);
-        preparedRequest.current = true;
-        if (selected) {
-          setSelectedDataset(selected);
-          setInput(`请先检查本地文件「${selected.name}」（数据 ID：${selected.id}），帮我选择适合的图例和参数，并生成待确认的转换方案。`);
-        } else setError('指定的数据不在当前助手中，请重新选择文件。');
-      }
+    const data = await api<{datasets:ChatDataset[]}>('/datasets');
+    setDatasets(data.datasets);
+    if (requestedDataset.current && !preparedRequest.current) {
+      const selected = data.datasets.find(item=>item.id===requestedDataset.current);
+      preparedRequest.current = true;
+      if (selected) {setSelectedDataset(selected);setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），帮我选择图例和参数。`);}
+      else setError('此浏览器中找不到指定表格，请重新导入。');
     }
-    catch { setConnected(false); setDatasets([]); }
   }
   useEffect(() => {
     document.title = 'bioinfobuddy';
@@ -132,7 +110,7 @@ export default function Chat() {
       const selected = localStorage.getItem(PROVIDER) || 'deepseek';
       const current = (Object.hasOwn(providers,selected) ? selected : 'deepseek') as Provider;
       const saved = savedSettings(current);
-      setProvider(current); setApiKey(saved.key); setRemember(saved.remember); setModel(saved.model); setSettings(false);
+      restoreSettings(saved); activeSettings.current = saved; setSettings(false);
     } catch { setSettings(false); }
     void Promise.all([list<Conversation>('chats'), refreshData()]).then(([saved]) => {
       // Recover every saved conversation, including older history selections.
@@ -142,8 +120,8 @@ export default function Chat() {
     }).catch(reason => setError(String(reason.message))).finally(() => setLoading(false));
     const onFocus = () => { void refreshData().catch(() => {}); };
     window.addEventListener('focus', onFocus);
-    window.addEventListener('bioinfobuddy-companion-change', onFocus);
-    return () => { window.removeEventListener('focus', onFocus); window.removeEventListener('bioinfobuddy-companion-change', onFocus); };
+
+    return () => { window.removeEventListener('focus', onFocus); };
   }, []);
   useEffect(() => {
     const onPop = () => showRoute(window.location.pathname + window.location.search, false);
@@ -162,22 +140,15 @@ export default function Chat() {
     setHistory(previous => [next, ...previous.filter(item => item.id !== next.id)]);
   }
   function saveSettings() {
-    if (!/^[\x21-\x7e]{8,512}$/.test(apiKey.trim())) { setError('请填写有效的 API Key。'); return; }
-    if (!/^[a-zA-Z0-9_.:-]{1,100}$/.test(model.trim())) { setError('请填写有效的模型名称。'); return; }
     try {
-      const scopedKey = KEY + ':' + provider;
-      localStorage.removeItem(scopedKey); sessionStorage.removeItem(scopedKey);
-      if (provider === 'deepseek') {localStorage.removeItem(KEY); sessionStorage.removeItem(KEY);}
-      (remember ? localStorage : sessionStorage).setItem(scopedKey, apiKey.trim());
-      localStorage.setItem(MODEL + ':' + provider, model.trim()); localStorage.setItem(PROVIDER,provider);
-      setApiKey(apiKey.trim()); setModel(model.trim()); setSettings(false); setError('');
-    } catch { setError('浏览器未允许保存设置，请检查网站存储权限。'); }
+      const value = {provider,key:apiKey.trim(),model:model.trim(),workspace:workspace.trim(),remember};
+      storeSettings(value); activeSettings.current = value; restoreSettings(value); setSettings(false); setError('');
+    } catch (reason) {setError(reason instanceof Error ? reason.message : '无法保存设置。');}
   }
   async function send() {
     const prompt = input.trim();
     if (!prompt || started.current || loading) return;
-    if (!connected || !companionConnected()) {setError('请先连接本地助手，再开始对话。'); return;}
-    if (!apiKey) { setSettings(true); return; }
+    if (!apiKey) { openSettings(); return; }
     started.current = true; setBusy(true); setError(''); setInput('');
     abort.current = new AbortController();
     const signal = abort.current.signal;
@@ -188,11 +159,7 @@ export default function Chat() {
         messages: current.messages, signal,
         request: async messages => {
           setProgress('正在分析');
-          const response = await companionFetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ apiKey, model, provider, messages: [{ role: 'system', content: systemPrompt }, ...messages], tools: toolDefinitions }), signal });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok || !data.message) throw new Error(data.error || `模型请求失败（${response.status}）。`);
-          return data.message;
+          return requestModel(activeSettings.current, [{role:'system',content:systemPrompt},...messages], toolDefinitions, signal);
         },
         execute: (name, args) => executeTool(name, args, signal),
         changed: async (messages, event) => {
@@ -210,8 +177,7 @@ export default function Chat() {
     if (started.current) return;
     started.current = true; setBusy(true); setProgress('正在读取数据'); setError('');
     try {
-      if (!connected) throw new Error('请先连接本地助手。');
-      const imported = await (await companionFetch('/datasets',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Filename':encodeURIComponent(selected.name)},body:selected})).json() as ChatDataset;
+      const imported = await importDataset(selected);
       setSelectedDataset(imported); await refreshData();
       showRoute(`/?view=analysis&dataset=${imported.id}`);
     }
@@ -222,8 +188,7 @@ export default function Chat() {
     if (started.current) return;
     started.current = true; setBusy(true); setProgress('正在载入样例'); setError('');
     try {
-      if (!connected) throw new Error('请先连接本地助手，并安装基础科研绘图技能。');
-      const imported = await (await companionFetch('/datasets',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Filename':'synthetic-groups.csv'},body:new Blob(['Control,Treatment\n3,5\n4,7\n5,6\n4,8\n6,9\n'],{type:'text/csv'})})).json() as ChatDataset;
+      const imported = await post<ChatDataset>('/examples/wide');
       setSelectedDataset(imported); await refreshData();
       showRoute(`/?view=analysis&dataset=${imported.id}`);
     }
@@ -241,59 +206,61 @@ export default function Chat() {
     <a href="/" className="chat-brand" onClick={event=>{event.preventDefault();navigate('chat');}}><Dna size={24}/><strong>bioinfobuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'environments',icon:Laptop},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
     <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>对话会保存在此浏览器</p>}</nav>
-    <div className="chat-rail-bottom"><button onClick={()=>navigate('connection')}><span className={`status-dot ${connected?'':'disconnected'}`}/>{connected?'本地助手已连接':'连接本地助手'}</button><button className="icon-button" aria-label="模型设置" disabled={busy} onClick={()=>{mobileNavigation.current?.close();setSettings(true);}}><Settings2 size={18}/></button></div>
+    <div className="chat-rail-bottom"><button disabled={busy} onClick={()=>{mobileNavigation.current?.close();openSettings();}}><Settings2 size={16}/>{apiKey?'API 模型设置':'配置模型 API'}</button></div>
   </>;
   return <div className="chat-shell">
     <aside className="chat-rail" aria-label="主侧边栏">{navigation}</aside>
     <dialog ref={mobileNavigation} className="chat-navigation-dialog" aria-label="导航菜单"><button className="icon-button chat-menu-close" aria-label="关闭导航菜单" onClick={()=>mobileNavigation.current?.close()}><X size={20}/></button>{navigation}</dialog>
     <main className="chat-main">
-      <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'?(conversation.messages.length?conversation.title:'生信分析'):viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={()=>setSettings(true)}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
+      <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'?(conversation.messages.length?conversation.title:'生信分析'):viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
       <section className="chat-conversation" hidden={view!=='chat'} aria-label="AI 对话">
       <div className="chat-scroll">
-        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><p>选一张图，让 AI 帮你整理数据，在自己的电脑上生成。</p><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => void example()}><Database size={17}/>试用分组样例</button></div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
+        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><p>连接国内模型 API，讨论生信问题，或导入表格生成图表。</p><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => void example()}><Database size={17}/>试用分组样例</button></div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
           {message.role === 'assistant' && <Dna className="chat-avatar" size={22}/>}
           <div>{message.content && <MessageText text={message.content} onOpen={showRoute}/>}{message.tool_calls?.map(call => { const event = conversation.events.find(item => item.id === call.id); return <div className="tool-step" key={call.id}>{event?.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event?.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}<span>{toolLabels[call.function.name] || call.function.name}{event?.detail && ` · ${event.detail}`}</span>{event?.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}</div>; })}</div>
         </div>)}</div>}
         <div ref={end}/>
       </div>
       <div className="chat-compose-area">
-        {!connected && <div className="chat-connection"><span>先启动本地助手，连接后即可导入数据和使用 AI。</span><button className="text-link" onClick={()=>navigate('connection')}>连接与安装指引 ↗</button></div>}
+        {!apiKey && <div className="chat-connection"><span>选择模型并填写 API Key，即可开始对话。</span><button className="text-link" onClick={openSettings}>配置 API ↗</button></div>}
         {error && <div className="chat-error" role="alert"><span>{error}</span><button className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15}/></button></div>}
         {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前选择' : `${datasets.length} 份数据`}</span><a href={`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();showRoute(`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
-          <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || '表格 · FASTQ · H5AD · R'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
-        </form><p className="chat-footnote">原始数据在本机 · 模型接收必要概要与预览 · Shift + Enter 换行</p>
+          <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || 'CSV · TSV · XLSX · 最大 2 MB'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
+        </form><p className="chat-footnote">表格由本站分析服务处理 · 模型接收必要预览 · Shift + Enter 换行</p>
       </div>
-      <input ref={file} type="file" accept=".csv,.tsv,.xlsx,.fastq,.fq,.gz,.h5ad,.r,.R" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
+      <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
       {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
-      <section className="chat-analysis" hidden={view==='chat'||view==='tutorial'||view==='genomes'} aria-label={viewLabels[panelView]}><AnalysisPanel view={panelView} onNavigate={navigateFromPanel} onDataset={(id:string)=>void selectForChat(id)}/></section>
+      {(view==='analysis'||view==='history')&&<section className="chat-analysis" aria-label={viewLabels[panelView]}><App key={routeKey} embedded initialHistory={view==='history'} onDataset={(id:string)=>void selectForChat(id)}/></section>}
     </main>
-    <dialog ref={dialog} className="model-dialog" onCancel={() => setSettings(false)}>
-      <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={() => setSettings(false)}><X size={19}/></button></div>
+    <dialog ref={dialog} className="model-dialog" onCancel={closeSettings}>
+      <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={closeSettings}><X size={19}/></button></div>
       <p>选择提供商，使用自己的 API Key。</p>
       <form onSubmit={event => { event.preventDefault(); saveSettings(); }}>
         <label className="field"><span>模型提供商</span><select value={provider} onChange={event => {
-          const next = event.target.value as Provider; setProvider(next);
-          try {const saved = savedSettings(next); setApiKey(saved.key); setRemember(saved.remember); setModel(saved.model);}
-          catch {setApiKey('');setRemember(false);setModel(providers[next].model);}
+          const next = event.target.value as Provider;
+          try {restoreSettings(savedSettings(next));}
+          catch {restoreSettings({provider:next,key:'',remember:false,model:providers[next].model,workspace:''});}
           setError('');
         }}>{Object.entries(providers).map(([id,item])=><option value={id} key={id}>{item.name}</option>)}</select></label>
-        <label className="field"><span>{providers[provider].name} API Key</span><input type="password" autoComplete="off" placeholder="sk-…" value={apiKey} onChange={event => setApiKey(event.target.value)} required/></label>
-        <label className="field"><span>模型</span><input value={model} onChange={event => setModel(event.target.value)} placeholder={providers[provider].model} required/></label>
+        <label className="field"><span>{providers[provider].name} API Key</span><input type="password" autoComplete="off" placeholder="粘贴此平台的 API Key" value={apiKey} onChange={event => setApiKey(event.target.value)} required/></label>
+        <label className="field"><span>模型 ID</span><input list="provider-models" value={model} onChange={event => setModel(event.target.value)} placeholder={providers[provider].model} required/><datalist id="provider-models">{providers[provider].models.map(name=><option key={name} value={name}/>)}</datalist></label>
+        {provider==='qwen'&&<label className="field"><span>业务空间 ID（可选）</span><input value={workspace} onChange={event=>setWorkspace(event.target.value)} placeholder="llm-…"/></label>}
+        <p className="model-storage-note">{providers[provider].note}</p>
         <label className="remember-key"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/>在此浏览器记住 API Key</label>
-        <p className="model-storage-note">未勾选时，密钥仅保留在当前标签会话。模型请求由本地助手发往所选提供商，包含对话及工具返回的必要数据预览；绘图在本机执行。</p>
+        <p className="model-storage-note">未勾选时，密钥仅保留在当前标签会话。密钥经本站 API 转发至所选官方平台，本站不持久保存密钥。模型接收对话与必要数据预览；表格在本站分析服务临时处理。</p>
         {error && <p className="model-error" role="alert">{error}</p>}
         <button className="button primary full-width" type="submit">保存设置</button>
       </form>
-      <div className="model-dialog-links"><a href={providers[provider].keys} target="_blank" rel="noopener noreferrer">获取 API Key ↗</a><button type="button" onClick={()=>{setSettings(false);navigate('analysis');}}>先试用绘图 ↗</button></div>
+      <div className="model-dialog-links"><a href={providers[provider].keys} target="_blank" rel="noopener noreferrer">获取 API Key ↗</a><a href={providers[provider].docs} target="_blank" rel="noopener noreferrer">官方 API 文档 ↗</a></div>
     </dialog>
   </div>;
 }

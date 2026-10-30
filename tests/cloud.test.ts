@@ -87,70 +87,30 @@ test('invalid tool arguments become tool errors and never execute code', async (
   assert.match(result.find(m => m.role === 'tool')!.content!, /参数必须是对象/);
 });
 
-test('provider selection uses separate official endpoints and compatible request fields', async () => {
-  const endpoints = {openai:'https://api.openai.com/v1/chat/completions',qwen:'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'};
-  for (const [provider, endpoint] of Object.entries(endpoints)) {
-    let sent: Record<string,unknown> = {};
-    const result = await chatRequest({provider,apiKey:'test-key-only',model:'test-model',messages:[{role:'user',content:'test'}]}, async (url:string,init:RequestInit)=> {
-      assert.equal(url,endpoint); assert.equal(init.redirect,'error');
-      sent = JSON.parse(String(init.body));
-      return new Response(JSON.stringify({choices:[{message:{role:'assistant',content:'test'}}]}));
-    });
-    assert.equal(result.status,200);
-    if(provider === 'openai') {assert.equal(sent.max_completion_tokens,4096);assert.equal(sent.max_tokens,undefined);}
-    if(provider === 'qwen') {assert.equal(sent.enable_thinking,false);assert.equal(sent.max_tokens,4096);}
-  }
-  const rejected = await chatRequest({provider:'http://127.0.0.1'},()=>{throw new Error('unexpected request');});
-  assert.equal(rejected.status,400);
-});
-
-test('model tools can draft a local plan but never execute or install without the user', async () => {
+test('website tools inspect stored data and draft but cannot approve or run', async () => {
   const {executeTool,toolDefinitions} = await import('../web/src/agent-tools.ts');
   const originalFetch = globalThis.fetch;
-  const originalSession = Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');
-  const memory = new Map([['bioinfobuddy-companion-token','test-pair-token']]);
-  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(key:string)=>memory.get(key)||null,removeItem:(key:string)=>memory.delete(key)}});
-  const calls:string[] = [];
   const recordId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  await save('datasets',{id:recordId,name:'test.csv',createdAt:'2026-10-30',file:new Blob(['group,value\nA,1']),rows:1,columns:[{name:'value',type:'number',missing:0}],preview:[{group:'A',value:1}],sha256:'test-hash'});
+  const calls:string[] = [];
   try {
     globalThis.fetch = async (url,init) => {
-      calls.push(String(url));
-      assert.equal((init?.headers as Record<string,string>).Authorization,'Bearer test-pair-token');
-      if(String(url).endsWith('/plans')) {
-        assert.deepEqual(JSON.parse(String(init?.body)),{datasetId:recordId,template:'box',params:{layout:'wide',missing:'error',valueColumns:['Control','Treatment']}});
-        return new Response(JSON.stringify({id:recordId,status:'draft'}));
-      }
-      throw new Error('Unexpected route');
+      calls.push(String(url)); assert.equal(String(url),'/api/analysis');
+      const sent = JSON.parse(String(init?.body));
+      assert.equal(sent.action,'preview');assert.equal(sent.config.chart,'box');
+      return new Response(JSON.stringify({inputRows:1,outputRows:1,preview:[],steps:[]}));
     };
     assert(!toolDefinitions.some(tool=>/run_approved|install|approve/.test(tool.function.name)));
-    const result = await executeTool('bio_preview_plan',{datasetId:recordId,template:'box',params:{layout:'wide',missing:'error',valueColumns:['Control','Treatment']}},new AbortController().signal) as {status:string;workbenchUrl:string};
-    assert.equal(result.status,'draft'); assert.equal(result.workbenchUrl,`/?view=analysis&plan=${recordId}`);
+    const inspected = await executeTool('bio_inspect_dataset',{datasetId:recordId},new AbortController().signal) as {rows:number};
+    assert.equal(inspected.rows,1);assert.equal(calls.length,0);
+    const result = await executeTool('bio_preview_plan',{datasetId:recordId,chart:'box',layout:'long',missing:'error',group:'group',y:'value'},new AbortController().signal) as {id:string;status:string;workbenchUrl:string};
+    assert.equal(result.status,'draft');assert.equal(result.workbenchUrl,`/?view=analysis&plan=${result.id}`);
+    assert.equal((await read<{status:string}>('plans',result.id)).status,'draft');
     await assert.rejects(executeTool('bio_run_approved_plan',{planId:recordId},new AbortController().signal),/没有这个工具/);
-    await assert.rejects(executeTool('bio_preview_plan',{datasetId:'../../file',template:'box',params:{}},new AbortController().signal),/记录 ID/);
+    await assert.rejects(executeTool('bio_preview_plan',{datasetId:'../../file'},new AbortController().signal),/记录 ID/);
     assert.equal(calls.length,1);
-  } finally {globalThis.fetch=originalFetch; if(originalSession)Object.defineProperty(globalThis,'sessionStorage',originalSession);else Reflect.deleteProperty(globalThis,'sessionStorage');}
+  } finally {globalThis.fetch=originalFetch;}
 });
-
-test('a rejected model API key does not discard the local assistant pairing', async () => {
-  const {companionFetch,companionConnected} = await import('../web/src/companion.ts');
-  const originalFetch=globalThis.fetch;
-  const descriptors = ['sessionStorage','window'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)] as const);
-  const memory = new Map([['bioinfobuddy-companion-token','paired-test-token']]);
-  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:(key:string)=>memory.get(key)||null,removeItem:(key:string)=>memory.delete(key)}});
-  Object.defineProperty(globalThis,'window',{configurable:true,value:new EventTarget()});
-  try {
-    globalThis.fetch=async()=>new Response(JSON.stringify({error:'API Key 无效'}),{status:401});
-    await assert.rejects(companionFetch('/chat',{method:'POST'}),/API Key/);
-    assert.equal(companionConnected(),true,'provider error must preserve pairing');
-    globalThis.fetch=async()=>new Response(JSON.stringify({error:'请连接本地助手。',code:'COMPANION_AUTH_REQUIRED'}),{status:401});
-    await assert.rejects(companionFetch('/chat',{method:'POST'}),/连接本地助手/);
-    assert.equal(companionConnected(),false,'expired helper credentials must be cleared');
-  } finally {
-    globalThis.fetch=originalFetch;
-    for(const [key,descriptor] of descriptors)if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);
-  }
-});
-
 
 test('main navigation restores legacy plan/run links and preserves chat dataset context', async () => {
   const {safeAppLink,appRoute,messageParts} = await import('../web/src/navigation.ts');
@@ -159,18 +119,19 @@ test('main navigation restores legacy plan/run links and preserves chat dataset 
   assert.equal(safeAppLink(`/workbench/?plan=${recordId}`),`/?view=analysis&plan=${recordId}`);
   assert.deepEqual(appRoute(`/?dataset=${recordId}`),{view:'chat',request:{dataset:recordId}});
   assert.deepEqual(appRoute(`/?view=analysis&dataset=${recordId}`),{view:'analysis',request:{dataset:recordId}});
-  assert.deepEqual(appRoute('/?view=environments'),{view:'environments',request:{}});
+  assert.deepEqual(appRoute('/?view=environments'),{view:'chat',request:{}});
+  for(const view of ['connection','skills','environments']) assert.equal(safeAppLink('/?view='+view),undefined);
   assert.equal(safeAppLink('/?view=tutorial'),'/?view=tutorial');
   assert.deepEqual(appRoute('/?view=tutorial'),{view:'tutorial',request:{}});
-  assert.deepEqual(messageParts(`查看 [原结果](/workbench?run=${recordId}) 和 [环境](/?view=environments)`),[
-    {text:'查看 '},{text:'原结果',href:`/?view=analysis&run=${recordId}`},{text:' 和 '},{text:'环境',href:'/?view=environments'},{text:''},
+  assert.deepEqual(messageParts(`查看 [原结果](/workbench?run=${recordId}) 和 [历史](/?view=history)`),[
+    {text:'查看 '},{text:'原结果',href:`/?view=analysis&run=${recordId}`},{text:' 和 '},{text:'历史',href:'/?view=history'},{text:''},
   ]);
   for(const unsafe of ['//evil.example','/\\evil.example','/workbench/cloud','/workbench?next=https://evil.example','/?view=not-a-view','/?view=analysis&plan=../../secret','/?view=analysis&run=one&run=two','/api/chat','/?view=analysis#attack','https://bioinfobuddy.com.cn/?view=analysis']) assert.equal(safeAppLink(unsafe),undefined,unsafe);
   assert.deepEqual(messageParts('[unsafe](//evil.example)'),[{text:''},{text:'[unsafe](//evil.example)'},{text:''}]);
 });
 
 test('agent result links accept the main shell and reject non-app destinations', async () => {
-  for(const [url,expected] of [['/?view=analysis&run=real-run','/?view=analysis&run=real-run'],['/?view=environments','/?view=environments'],['/workbench/cloud',undefined],['//evil.example',undefined]]) {
+  for(const [url,expected] of [['/?view=analysis&run=real-run','/?view=analysis&run=real-run'],['/?view=history','/?view=history'],['/workbench/cloud',undefined],['//evil.example',undefined]]) {
     let rounds=0; const events:ToolEvent[]=[];
     await runAgent({messages:[{role:'user',content:'result'}],signal:new AbortController().signal,
       request:async()=>++rounds===1?{role:'assistant',content:null,tool_calls:[{id:'link',type:'function',function:{name:'open',arguments:'{}'}}]}:{role:'assistant',content:'ready'},
