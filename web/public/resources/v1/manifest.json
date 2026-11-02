@@ -1,0 +1,328 @@
+{
+  "version": "1.0",
+  "original": {
+    "name": "V1.0-original.zip",
+    "bytes": 279982925,
+    "sha256": "4937a8d4d8fe86212753fbc2c74210e8b534368cf54ae51b3700c423b104fc83",
+    "parts": [
+      {
+        "url": "/resources/v1/original/V1.0.zip.part001.bin",
+        "bytes": 40000000,
+        "sha256": "55b18fd2dd6c19b8e4f80c8a7663d78a77c92ce7aa811ba968ebf50f05ba7e42"
+      },
+      {
+        "url": "/resources/v1/original/V1.0.zip.part002.bin",
+        "bytes": 40000000,
+        "sha256": "c6ad1903467dd021896d0669fb7862266c26d0e2738f9cc82966114afaad83bb"
+      },
+      {
+        "url": "/resources/v1/original/V1.0.zip.part003.bin",
+        "bytes": 40000000,
+        "sha256": "68f519a43f03ab7e2c2c18aa5c281df78b8e15c4c54c6bf2bd517f412890ca2a"
+      },
+      {
+        "url": "/resources/v1/original/V1.0.zip.part004.bin",
+        "bytes": 40000000,
+        "sha256": "4b11c06e6c8fbf29a8c5f5dbb06bc10b1347f7a298cde6bd77283e477bbb3dfe"
+      },
+      {
+        "url": "/resources/v1/original/V1.0.zip.part005.bin",
+        "bytes": 40000000,
+        "sha256": "68c7c8c75af23b53b2cdf6c5182a3bb8c86726a787ddd1ce55cf00272f35c38f"
+      },
+      {
+        "url": "/resources/v1/original/V1.0.zip.part006.bin",
+        "bytes": 40000000,
+        "sha256": "b4a9b79d0b4827bf5ef5e4ddcf8718b6afaff7db5b29d41b6dd31f77c40d60ad"
+      },
+      {
+        "url": "/resources/v1/original/V1.0.zip.part007.bin",
+        "bytes": 39982925,
+        "sha256": "799c20758682e96bc0f525ba471ecdd9a94a87f5a235f32bc87c6b7a3d3aa897"
+      }
+    ]
+  },
+  "files": [
+    {
+      "source": "V1.0/单细胞/r环境/mac/sc-conda-packages.txt",
+      "bytes": 17788,
+      "sha256": "a1fc2722bcfc7dd23fb5eef4d11fccab3394f1974741cd44fd0b262e360cb7b5",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/r环境/win/environment-win-64.lock.txt",
+      "bytes": 5287,
+      "sha256": "4371fe4482141999fd57c34fd5ecf65e12882e68b4a1ded4878cce87dea761d7",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/r环境/win/environment.yml",
+      "bytes": 444,
+      "sha256": "03a730906ed215e2a2e706a659a377773540be5c0936aa29fcb302774bed9251",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例图/01_QC_violin.png",
+      "bytes": 102741,
+      "sha256": "a974495433beab1ad5647721ddad213980b44b68e84c2bfb84d02e17293d41db",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例图/02_UMAP_clusters.png",
+      "bytes": 360305,
+      "sha256": "e5aef2de9d794042d9f62c439891b1edaf67a86076b1301391f41dac98ed69fb",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例图/03_marker_dotplot.png",
+      "bytes": 330031,
+      "sha256": "d461dcbc8a2717618962ad9f95c857a9f5eb369ba632aaefb744d662f603ff69",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例图/04_marker_featureplot.png",
+      "bytes": 502739,
+      "sha256": "0adf907194256a1163c979d50d99c22dbb779759dfe79814fc4ca5f3826c72d9",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例图/四图分析说明.txt",
+      "bytes": 472,
+      "sha256": "46d9766eb160e7d60d974062f3305330629a10b9058362e5943a551a97f8d17a",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例数据与代码/filtered_gene_bc_matrices/hg19/barcodes.tsv",
+      "bytes": 45900,
+      "sha256": "58c2a224a2b4258f7e8799a18890bda6d23824b247b80db2b08a0dcc36a4c660",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例数据与代码/filtered_gene_bc_matrices/hg19/genes.tsv",
+      "bytes": 816952,
+      "sha256": "8778dd78085086be6dcafa8334f95f7cf76b25526e8ef2b63186db5127a1492c",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例数据与代码/filtered_gene_bc_matrices/hg19/matrix.mtx",
+      "bytes": 28179564,
+      "sha256": "7d92358b9d29128a225c50f2a662d6ccca9c71bc665e0af82692ed1361eb94e4",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例数据与代码/generate_four_plots.R",
+      "bytes": 11786,
+      "sha256": "138178282b2000b9d82649e3a16b26537ae189cfd7ac6681ef5dd9b80333b156",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/示例数据与代码/marker_summary.csv",
+      "bytes": 13554,
+      "sha256": "5a8a58c1cef2bf23f781854233c9350fd0f3439c525ca4af0775f5db12a7b654",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/单细胞/配色/colors.R",
+      "bytes": 757,
+      "sha256": "19017548f9ee2333f968d3b679f4064cf38eb7e1f3b9b93bdbd508bc474647a9",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/教程/01_过滤、整合与聚类.md",
+      "bytes": 3112,
+      "sha256": "da55a4077db937f7621114bdc931254246e4eb42aef68c5d7236d020ea10e751",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/教程/02_细胞注释注意事项与结果解读.md",
+      "bytes": 2462,
+      "sha256": "fbb5cd7a13812e51a8222a87124f14401b5eb371544c7547aa26aa848710824b",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/教程/03_差异表达与功能富集分析.md",
+      "bytes": 10580,
+      "sha256": "386283f9c715c01641b68e30a9f76cb92b5c51e5f52aa32edc134728562bc7e2",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/教程/04_细胞注释理论与实操指南.md",
+      "bytes": 8235,
+      "sha256": "229d14027f6962fb3841966f1e661776912f4b7bb925185b779b4b5a55542d42",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/教程/未命名.txt",
+      "bytes": 83,
+      "sha256": "b7dc7f0eb46eae40d6fe4d05d87c1acc29b23434b8905e662b5f2cf939513a98",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/python环境/mac/st_miniconda.txt",
+      "bytes": 819,
+      "sha256": "985737d318f6d09b659ef2897327ed4a064511ef40780118438f640df0874e68",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/python环境/win/environment.yml",
+      "bytes": 261,
+      "sha256": "6b1b22265ff60a76156f52a47e5478b452b4a3fea82de9e0065a6c3eaa101f5a",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/python环境/win/st_miniconda.txt",
+      "bytes": 2010,
+      "sha256": "cbdf05f2a0e61af7ffa1c1e176a19a75b58d5a5430f38019c7b5863aad8e290e",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/01_QC_histograms.png",
+      "bytes": 76189,
+      "sha256": "66ee2248b6085696bba932d1c5b94a4783e6f4ecb570eefd1cf61e6e0c698736",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/02_UMAP_total_counts.png",
+      "bytes": 279723,
+      "sha256": "06272cce018d646ecdd03b93a5d87e211873cf29600fcedae3ae9272c60fa0c6",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/03_UMAP_n_genes_by_counts.png",
+      "bytes": 286248,
+      "sha256": "64669b73b1ce95cbd3041eecf60475081a6e694e758a99be6d41c6bc7a19bc72",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/04_UMAP_clusters.png",
+      "bytes": 224593,
+      "sha256": "4aa5e6a7df3179fd8d92dd7ec171539ff10329a41f2ed5f12e43f56cb4919d37",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/05_spatial_total_counts.png",
+      "bytes": 2466585,
+      "sha256": "e9ccf343fd057732b422b296bc5dc2d5153c6e69000b0e7093e9f5c5ef8b85a6",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/06_spatial_n_genes_by_counts.png",
+      "bytes": 2445973,
+      "sha256": "493db93941311a9264ecc0271a056a68aed7e4e636d206538a65b127c0d02300",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/07_spatial_clusters.png",
+      "bytes": 2304461,
+      "sha256": "db7211852ba8549d73cb481d51446cdfe91d2b2109df4e3863fe58dafd2d0f13",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/08_marker_heatmap_cluster2.png",
+      "bytes": 117969,
+      "sha256": "0d8b0d2684320f749ec8d690ba0ba86e2e2f54dea7ec9089d0d68f93bcbd11e7",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例图/09_spatial_COL1A2_SYPL1.png",
+      "bytes": 4110897,
+      "sha256": "9322cea8178dd6a3b6355c83194aaef414765bfd11df0731d5d20885b4335402",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/filtered_feature_bc_matrix.h5",
+      "bytes": 21284646,
+      "sha256": "55654db0d7d8ae5d19f4ef31c3d5a1aa2ed3d96be24c99d9b174c738c481b3fa",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/filtered_feature_bc_matrix/barcodes.tsv.gz",
+      "bytes": 27047,
+      "sha256": "16468676a7a9f173d8e3057fd9c066f99e4995871225455da975a7e09ae56aaf",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/filtered_feature_bc_matrix/features.tsv.gz",
+      "bytes": 333437,
+      "sha256": "b09a38f879e18d65ad23e1ff014a5dc0f6ff4d774343e8d618d425c42c30f694",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/filtered_feature_bc_matrix/matrix.mtx.gz",
+      "bytes": 55389045,
+      "sha256": "d8fc0351e0531cc9d35c74b786659911a0baf47fa4c55aab9a4c6ea88a8fcec1",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/molecule_info.h5",
+      "bytes": 163949100,
+      "sha256": "b0cba313880cc67fdaea86050657868438b8cd14f0384c758d1e3500c13426d4",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/aligned_fiducials.jpg",
+      "bytes": 2089719,
+      "sha256": "fe0498356656a1a764fc8251350c1107e0f861a6f94d68b6ae767520987891b6",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/detected_tissue_image.jpg",
+      "bytes": 2573035,
+      "sha256": "58bc119092cd6364c0acf63f7441b7b3bbbf81a448cce614a10a35121974c93d",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/scalefactors_json.json",
+      "bytes": 165,
+      "sha256": "9c0ff01c1db574e5dcffe6889334e2bab0afd15d4b3c2322293189b9df242481",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/tissue_hires_image.png",
+      "bytes": 15741531,
+      "sha256": "239a0ec68311d45a7d2598cf4a85a1d7f913c9345b7aa53f839ef56a951d6128",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/tissue_lowres_image.png",
+      "bytes": 1451994,
+      "sha256": "8ce42125c4095827cfc29969d93f1d7b976dfe9ef0b95b1814e01b2ad9fc5891",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/tissue_positions_list.csv",
+      "bytes": 191295,
+      "sha256": "d20bc12a8f9bd932586ece81b39732346f71a5f4cd5e615110790aacd66a6084",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/st_scanpy.py",
+      "bytes": 3448,
+      "sha256": "53d2742061a67a98747321b9a176de995d4c2c3ed4cf58f553e7a2f19756e39f",
+      "access": "original"
+    },
+    {
+      "source": "V1.0/空间转录组/示例数据与代码/st_scanpy.qmd",
+      "bytes": 2745,
+      "sha256": "cd1cfc2e46d5d88a3826bcac323ec2bd557acf44682f6af02b13e26d08d3df55",
+      "access": "original"
+    }
+  ],
+  "packages": {
+    "single-cell": {
+      "url": "/resources/v1/single-cell-reproduction.zip",
+      "bytes": 7633411,
+      "sha256": "baa242fa6a6787086d831bfa391301611b8ecb98e874dcc6167ba25016c6bceb"
+    },
+    "spatial": {
+      "url": "/resources/v1/spatial-reproduction.zip",
+      "bytes": 42969402,
+      "sha256": "0e783782ef019fb3d40c598a8805c8cbcbf08005b5776caeaf9751846adce5cc"
+    },
+    "guides": {
+      "url": "/resources/v1/guides-reproduction.zip",
+      "bytes": 180605,
+      "sha256": "ad2e69c5427f38564a12e9390258ebbb3b5e1846cb90746e030d814e6f96f52e"
+    }
+  }
+}

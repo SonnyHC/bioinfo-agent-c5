@@ -1,0 +1,98 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
+import { assembleArchive, type ResourceArchive } from '../web/src/resource-download.ts';
+import { appRoute, safeAppLink } from '../web/src/navigation.ts';
+import { executeTool } from '../web/src/agent-tools.ts';
+import { skillCatalog, skillMarkdown } from '../web/src/skill-catalog.ts';
+import { omicsCases, omicsGuides } from '../web/src/omics-content.ts';
+
+const digest = (input: string) => createHash('sha256').update(input).digest('hex');
+function fixture(): ResourceArchive {
+  return {name:'V1.0-original.zip', bytes:6, sha256:digest('abcdef'), parts:[
+    {url:'/resources/v1/original/V1.0.zip.part001.bin',bytes:3,sha256:digest('abc')},
+    {url:'/resources/v1/original/V1.0.zip.part002.bin',bytes:3,sha256:digest('def')},
+  ]};
+}
+
+test('streamed archive validates ordered parts and reports received bytes', async () => {
+  const seen: string[] = [];
+  const progress: number[] = [];
+  const result = await assembleArchive(fixture(), new AbortController().signal, size => progress.push(size), async url => {
+    seen.push(String(url));
+    const text = String(url).includes('001') ? 'abc' : 'def';
+    return new Response(new ReadableStream({start(controller) {
+      controller.enqueue(new TextEncoder().encode(text.slice(0, 1)));
+      controller.enqueue(new TextEncoder().encode(text.slice(1)));
+      controller.close();
+    }}));
+  });
+  assert.equal(await result.text(), 'abcdef');
+  assert.deepEqual(seen, fixture().parts.map(part => part.url));
+  assert.deepEqual(progress, [1,3,4,6]);
+  assert.equal(result.type, 'application/zip');
+});
+
+test('failed, truncated, oversized and corrupt parts never produce an archive', async () => {
+  for (const response of [new Response('404', {status:404}), new Response('ab'), new Response('abcd'), new Response('bad')]) {
+    await assert.rejects(assembleArchive(fixture(), new AbortController().signal, () => {}, async () => response));
+  }
+  const invalid = fixture();
+  invalid.parts[0].url = 'https://example.com/leak';
+  let fetched = false;
+  await assert.rejects(assembleArchive(invalid, new AbortController().signal, () => {}, async () => {fetched = true; return new Response('abc');}), /清单无效/);
+  assert.equal(fetched, false);
+});
+
+test('cancelling during a stream stops before another part is fetched', async () => {
+  const abort = new AbortController();
+  let calls = 0;
+  await assert.rejects(assembleArchive(fixture(), abort.signal, () => abort.abort(), async () => {calls++; return new Response('abc');}), error => (error as Error).name === 'AbortError');
+  assert.equal(calls, 1);
+});
+
+test('case and guide resources exist and packaged metadata matches actual downloads', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../web/src/data/omics-manifest.json', import.meta.url), 'utf8'));
+  const local = (url: string) => new URL('../web/public' + url, import.meta.url);
+  assert.equal(manifest.files.length,44);
+  assert.equal(manifest.original.parts.length,7);
+  assert.equal(manifest.original.parts.reduce((size: number, part: {bytes:number}) => size + part.bytes,0),manifest.original.bytes);
+  for (const part of manifest.original.parts) {
+    assert(part.bytes <= 40_000_000);
+    assert.equal(statSync(local(part.url)).size, part.bytes);
+  }
+  for (const resource of Object.values(manifest.packages) as {url:string;bytes:number;sha256:string}[]) {
+    const bytes = readFileSync(local(resource.url));
+    assert.equal(bytes.length, resource.bytes);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), resource.sha256);
+  }
+  assert.equal(omicsCases.reduce((n, item) => n + item.figures.length, 0),13);
+  for (const item of omicsCases) {
+    for (const [file] of item.figures) assert(statSync(local(`/resources/v1/${item.id}/figures/${file}`)).size > 0);
+    for (const [file] of item.files) assert(statSync(local(`/resources/v1/${item.id}/${file}`)).size > 0);
+  }
+  for (const guide of omicsGuides) {
+    assert(statSync(local(`/resources/v1/guides/${guide.id}.md`)).size > 0);
+    for (const section of guide.sections) if (section.screenshot) {
+      const bytes = readFileSync(local(`/resources/v1/guides/screenshots/${section.screenshot}`));
+      assert.equal(bytes[0],0xff);
+      assert.equal(bytes[1],0xd8);
+    }
+  }
+});
+
+test('resources route and guidance skills do not create analysis or execution requests', async () => {
+  assert.equal(safeAppLink('/?view=omics'), '/?view=omics');
+  assert.deepEqual(appRoute('/?view=omics'), {view:'omics',request:{}});
+  assert.equal(safeAppLink('/?view=omics&url=https://example.com'), undefined);
+  const result = await executeTool('bio_open_omics_resources', {}, new AbortController().signal) as {workbenchUrl:string;note:string};
+  assert.equal(result.workbenchUrl,'/?view=omics');
+  assert.match(result.note,/不执行/);
+  const guidance = skillCatalog.filter(skill => skill.category.endsWith('指导'));
+  assert.equal(guidance.length,5);
+  for (const skill of guidance) {
+    assert.match(skillMarkdown(skill),/外部/);
+    assert(!skill.tools.some(name => /preview_plan|run|approve|install/.test(name)));
+  }
+});

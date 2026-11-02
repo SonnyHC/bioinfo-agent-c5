@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, Images, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
 import { api, importDataset, post } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
 import { requestModel } from './model-api';
@@ -17,6 +17,7 @@ import type { AnalysisView, MainView } from './navigation';
 import './chat.css';
 const ReferenceGenomes = lazy(() => import('./ReferenceGenomes'));
 const SkillStore = lazy(() => import('./SkillStore'));
+const OmicsResources = lazy(() => import('./OmicsResources'));
 
 interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[]; skillId?: string }
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
@@ -215,7 +216,7 @@ export default function Chat() {
     <a href="/" className="chat-brand" onClick={event=>{event.preventDefault();navigate('chat');}}><Dna size={24}/><strong>bioinfobuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'omics',icon:Images},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
@@ -248,6 +249,7 @@ export default function Chat() {
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
       {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
+      {view==='omics'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入组学案例…</p>}><OmicsResources onNavigate={navigate}/></Suspense>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
       {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
       {(view==='analysis'||view==='history')&&<section className="chat-analysis" aria-label={viewLabels[panelView]}><App key={routeKey} embedded initialHistory={view==='history'} onDataset={(id:string)=>void selectForChat(id)}/></section>}

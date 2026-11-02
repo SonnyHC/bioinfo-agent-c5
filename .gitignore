@@ -14,6 +14,7 @@ test-results/
 *.dmg
 *.exe
 *.zip
+!web/public/resources/v1/*-reproduction.zip
 *.fastq*
 *.h5ad
 *.bam

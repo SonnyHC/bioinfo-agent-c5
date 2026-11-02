@@ -1,0 +1,19 @@
+---
+title: "GBM1 空间转录组示例"
+format: html
+jupyter: python3
+---
+
+本报告在外部 Python 环境运行同目录适配脚本，使用附件示例参数；spot 不等于单细胞。
+
+```{python}
+from pathlib import Path
+import subprocess
+import sys
+from IPython.display import Image, display
+root = Path.cwd()
+subprocess.run([sys.executable, str(root / "st_scanpy.py"), "--data-dir", str(root / "GSE194329_RAW/GBM1_spaceranger_out"), "--output-dir", str(root / "results")], check=True)
+for path in sorted((root / "results").glob("[0-9][0-9]_*.png")):
+    print(path.name)
+    display(Image(filename=str(path)))
+```

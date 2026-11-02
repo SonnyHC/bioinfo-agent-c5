@@ -1,0 +1,17 @@
+name: bioinfobuddy-st
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - scanpy=1.12.1
+  - anndata
+  - pandas
+  - matplotlib
+  - seaborn
+  - numpy
+  - pooch
+  - scipy
+  - python-igraph
+  - leidenalg
+  - h5py

@@ -1,0 +1,42 @@
+{
+  "name": "V1.0-original.zip",
+  "bytes": 279982925,
+  "sha256": "4937a8d4d8fe86212753fbc2c74210e8b534368cf54ae51b3700c423b104fc83",
+  "parts": [
+    {
+      "url": "/resources/v1/original/V1.0.zip.part001.bin",
+      "bytes": 40000000,
+      "sha256": "55b18fd2dd6c19b8e4f80c8a7663d78a77c92ce7aa811ba968ebf50f05ba7e42"
+    },
+    {
+      "url": "/resources/v1/original/V1.0.zip.part002.bin",
+      "bytes": 40000000,
+      "sha256": "c6ad1903467dd021896d0669fb7862266c26d0e2738f9cc82966114afaad83bb"
+    },
+    {
+      "url": "/resources/v1/original/V1.0.zip.part003.bin",
+      "bytes": 40000000,
+      "sha256": "68f519a43f03ab7e2c2c18aa5c281df78b8e15c4c54c6bf2bd517f412890ca2a"
+    },
+    {
+      "url": "/resources/v1/original/V1.0.zip.part004.bin",
+      "bytes": 40000000,
+      "sha256": "4b11c06e6c8fbf29a8c5f5dbb06bc10b1347f7a298cde6bd77283e477bbb3dfe"
+    },
+    {
+      "url": "/resources/v1/original/V1.0.zip.part005.bin",
+      "bytes": 40000000,
+      "sha256": "68c7c8c75af23b53b2cdf6c5182a3bb8c86726a787ddd1ce55cf00272f35c38f"
+    },
+    {
+      "url": "/resources/v1/original/V1.0.zip.part006.bin",
+      "bytes": 40000000,
+      "sha256": "b4a9b79d0b4827bf5ef5e4ddcf8718b6afaff7db5b29d41b6dd31f77c40d60ad"
+    },
+    {
+      "url": "/resources/v1/original/V1.0.zip.part007.bin",
+      "bytes": 39982925,
+      "sha256": "799c20758682e96bc0f525ba471ecdd9a94a87f5a235f32bc87c6b7a3d3aa897"
+    }
+  ]
+}
