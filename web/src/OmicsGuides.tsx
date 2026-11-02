@@ -2,17 +2,13 @@ import { useState } from 'react';
 import { ArrowDownToLine, ExternalLink } from 'lucide-react';
 import { omicsGuides } from './omics-content';
 
-// Intent: read one method at a time, with the corresponding real interface in view.
-// Hierarchy: the chosen lesson leads; a native selector and source links stay quiet.
-// Palette/depth/surfaces: existing paper, graphite and teal; simple rules, no new theme.
-// Type/spacing: 14px reading text, 22px section heads; 4px rhythm, 24px section gaps.
 export default function OmicsGuides() {
   const [selected, setSelected] = useState(omicsGuides[0].id);
   const guide = omicsGuides.find(item => item.id === selected)!;
   return <section className="omics-guides" aria-label="四篇组学专题教程">
-    <div className="omics-guide-picker"><label>选择专题<select value={selected} onChange={event => setSelected(event.target.value)}>{omicsGuides.map((item, i) => <option value={item.id} key={item.id}>{String(i + 1).padStart(2, '0')} · {item.title}</option>)}</select></label><a className="button" download href="/resources/v1/guides-reproduction.zip"><ArrowDownToLine size={15}/>下载全部教程与截图</a></div>
+    <div className="omics-guide-picker"><label>选择专题<select value={selected} onChange={event => setSelected(event.target.value)}>{omicsGuides.map((item, i) => <option value={item.id} key={item.id}>{i + 1}. {item.title}</option>)}</select></label><a className="button" download href="/resources/v1/guides-reproduction.zip"><ArrowDownToLine size={15}/>下载全部教程与截图</a></div>
     <article className="omics-lesson" key={guide.id}>
-      <header><p className="omics-kicker">专题教程 · 网页适配版</p><h2>{guide.title}</h2><p>{guide.summary}</p><a download href={`/resources/v1/guides/${guide.id}.md`}>下载本篇 Markdown <ArrowDownToLine size={13}/></a></header>
+      <header><h2>{guide.title}</h2><p>{guide.summary}</p><a download href={`/resources/v1/guides/${guide.id}.md`}>下载本篇 Markdown <ArrowDownToLine size={13}/></a></header>
       <p className="omics-note">本专题用于方法学习和外部环境复现；实际原始数据分析需要在 R / Python 中执行。</p>
       {guide.sections.map(section => <section key={section.title}>
         <h3>{section.title}</h3>

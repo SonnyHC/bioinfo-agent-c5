@@ -7,14 +7,6 @@ import './skill-store.css';
 const icons = { 'reviewed-bio-plot': Layers, 'table-check': FileSearch, 'matrix-heatmap': Grid2X2, 'distribution-explorer': ScatterChart, 'result-review': ClipboardCheck };
 const categories = ['全部', '数据整理', '科研绘图', '结果复核', '单细胞指导', '空间组学指导'] as const;
 
-// Intent: a researcher finds a workflow, checks its inputs and adds it to their AI.
-// Domain: samples, fields, matrices, analysis plans, tool steps, reproducible runs.
-// Signature: each skill pairs required inputs with outputs and its readable workflow.
-// Hierarchy: searchable skills lead; installation state and details support selection.
-// Palette: existing laboratory paper, graphite, teal glass, steel rules, amber notices.
-// Depth/surfaces: subtle borders on white cards, inset search, paper page; no new theme.
-// Type/spacing: existing humanist UI, 28px heading, 16px titles, 4px spacing grid.
-// Avoid popularity counters, decorative graphs and unrelated marketplace branding.
 export default function SkillStore({onUse, agentBusy}: {onUse: (skill: AnalysisSkill) => void; agentBusy: boolean}) {
   const [records, setRecords] = useState<InstalledSkill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,10 +69,10 @@ export default function SkillStore({onUse, agentBusy}: {onUse: (skill: AnalysisS
 
   return <section className="skill-store" aria-labelledby="skill-store-heading">
     <div className="skill-store-inner">
-      <header className="skill-heading"><div><span className="skill-eyebrow">SKILL LIBRARY</span><h1 id="skill-store-heading">为你的分析，添加合适的技能</h1><p>选择一个分析流程，让 AI 按步骤检查数据、使用工具、核对结果。</p></div><span className="skill-web-label"><Package size={15}/>网页即用</span></header>
+      <header className="skill-heading"><div><h1 id="skill-store-heading">数据分析技能</h1><p>技能是预先写好的分析流程。添加后，模型会按流程检查数据、调用工具并核对结果。</p></div></header>
       <div className="skill-shelves" aria-label="技能列表范围"><button aria-pressed={shelf === 'all'} onClick={() => setShelf('all')}>浏览技能<span>{skillCatalog.length}</span></button><button aria-pressed={shelf === 'mine'} onClick={() => setShelf('mine')}>我的技能<span>{loading ? '…' : records.length}</span></button></div>
-      <div className="skill-filters"><label className="skill-search"><Search size={18}/><input type="search" aria-label="搜索技能" placeholder="搜索技能、用途或文件类型…" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清除搜索" onClick={() => setQuery('')}><X size={16}/></button>}</label><div className="skill-categories" aria-label="技能分类">{categories.map(item => <button key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
-      <div className="skill-list-note"><span>{loading ? '正在读取我的技能…' : `${filtered.length} 项技能`}</span><span>BioInfoBuddy 内置 · 添加记录保存在此浏览器</span></div>
+      <div className="skill-filters"><label className="skill-search"><Search size={18}/><input type="search" aria-label="搜索技能" placeholder="搜索技能名称、用途或文件类型" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清除搜索" onClick={() => setQuery('')}><X size={16}/></button>}</label><div className="skill-categories" aria-label="技能分类">{categories.map(item => <button key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
+      <div className="skill-list-note"><span>{loading ? '正在读取我的技能…' : `${filtered.length} 项技能`}</span><span>均为内置技能，添加记录保存在此浏览器</span></div>
       {error && <p className="skill-error" role="alert">{error}</p>}
       {agentBusy && <p className="skill-feedback">AI 正在回复，完成后可添加、停用或使用技能。</p>}
       <p className="skill-feedback" role="status">{message}</p>
@@ -88,17 +80,17 @@ export default function SkillStore({onUse, agentBusy}: {onUse: (skill: AnalysisS
         const Icon = icons[skill.id as keyof typeof icons] ?? Package;
         const record = records.find(item => item.id === skill.id);
         return <article className="skill-card" key={skill.id}>
-          <div className="skill-card-top"><span className="skill-icon"><Icon size={23} strokeWidth={1.6}/></span><span className="skill-category">{skill.category}</span>{record && <span className={`skill-installed ${record.enabled ? '' : 'paused'}`}><Check size={12}/>{record.version !== skill.version ? '有更新' : record.enabled ? '已添加' : '已停用'}</span>}</div>
+          <div className="skill-card-top"><span className="skill-icon"><Icon size={16}/></span><span className="skill-category">{skill.category}</span>{record && <span className={`skill-installed ${record.enabled ? '' : 'paused'}`}><Check size={12}/>{record.version !== skill.version ? '有更新' : record.enabled ? '已添加' : '已停用'}</span>}</div>
           <h2><button onClick={() => setSelected(skill)}>{skill.name}</button></h2><p className="skill-description">{skill.description}</p>
           <div className="skill-tags">{skill.tags.slice(0, 4).map(tag => <span key={tag}>{tag}</span>)}</div>
           <dl className="skill-input"><dt>适用数据</dt><dd>{skill.inputs}</dd></dl>
           <footer><button className="skill-details-link" onClick={() => setSelected(skill)} aria-label={`查看${skill.name}详情`}>查看流程<ArrowRight size={14}/></button>{actions(skill)}</footer>
         </article>;
       })}</div> : <div className="skill-empty"><Package size={32}/><h2>{shelf === 'mine' && !records.length ? '还没有添加技能' : '没有找到匹配的技能'}</h2><p>{shelf === 'mine' && !records.length ? '从技能库选择你需要的分析流程，添加后即可在对话中使用。' : '试试其他关键词，或清除当前筛选。'}</p><button className="button" onClick={() => {setQuery(''); setCategory('全部'); setShelf('all');}}>浏览全部技能</button></div>}
-      <aside className="skill-how"><h2>添加后，如何使用？</h2><div><p><b>01</b><span>查看流程与适用数据，添加需要的技能。</span></p><p><b>02</b><span>点击“在对话中使用”，或让 AI 按任务加载已启用技能。</span></p><p><b>03</b><span>表格绘图到网页确认运行；组学指导按教程在外部环境执行。</span></p></div><p className="skill-scope-note">添加技能本身无需安装环境，也不会自动运行分析。单细胞与空间组学技能提供方法指导，实际计算需要另行准备 R / Python。</p></aside>
+      <aside className="skill-how"><h2>使用方式</h2><ol><li>查看流程与适用数据，添加需要的技能。</li><li>点击“在对话中使用”，或在普通对话中由模型按任务加载已启用的技能。</li><li>表格绘图在网页中确认后运行；组学指导需按教程在外部环境执行。</li></ol><p className="skill-scope-note">添加技能本身无需安装环境，也不会自动运行分析。单细胞与空间组学技能提供方法指导，实际计算需要另行准备 R / Python。</p></aside>
     </div>
     <dialog ref={dialog} className="skill-dialog" aria-labelledby="skill-detail-heading" onCancel={() => setSelected(null)} onClose={() => setSelected(null)}>
-      {selected && <><header><span className="skill-eyebrow">{selected.category} · v{selected.version}</span><button className="icon-button" aria-label="关闭技能详情" onClick={() => setSelected(null)}><X size={20}/></button></header><h2 id="skill-detail-heading">{selected.name}</h2><p className="skill-detail-description">{selected.description}</p><dl className="skill-spec"><dt>来源</dt><dd>BioInfoBuddy 内置</dd><dt>输入</dt><dd>{selected.inputs}</dd><dt>输出</dt><dd>{selected.outputs}</dd></dl><h3>技能流程</h3><ol className="skill-steps">{selected.steps.map((step, index) => <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><p>{step}</p></li>)}</ol><div className="skill-limits"><h3>适用范围</h3><p>{selected.limits}</p></div><details className="skill-source"><summary>查看 SKILL.md</summary><pre>{skillMarkdown(selected)}</pre></details>{error && <p role="alert" className="skill-error">{error}</p>}<p role="status" className="skill-feedback">{message}</p><footer><button className="skill-details-link" onClick={() => download(selected)}><ArrowDownToLine size={15}/>下载技能文件</button>{selectedRecord && <><button className="skill-details-link" disabled={disabled} onClick={() => void change(selected, 'remove')}>移除</button>{selectedRecord.enabled && <button className="skill-details-link" disabled={disabled} onClick={() => void change(selected, 'disable')}>停用</button>}</>}{actions(selected)}</footer></>}
+      {selected && <><header><span className="skill-meta">{selected.category} · v{selected.version}</span><button className="icon-button" aria-label="关闭技能详情" onClick={() => setSelected(null)}><X size={20}/></button></header><h2 id="skill-detail-heading">{selected.name}</h2><p className="skill-detail-description">{selected.description}</p><dl className="skill-spec"><dt>来源</dt><dd>BioInfoBuddy 内置</dd><dt>输入</dt><dd>{selected.inputs}</dd><dt>输出</dt><dd>{selected.outputs}</dd></dl><h3>流程</h3><ol className="skill-steps">{selected.steps.map((step, index) => <li key={step}><span>{index + 1}</span><p>{step}</p></li>)}</ol><div className="skill-limits"><h3>适用范围</h3><p>{selected.limits}</p></div><details className="skill-source"><summary>查看 SKILL.md</summary><pre>{skillMarkdown(selected)}</pre></details>{error && <p role="alert" className="skill-error">{error}</p>}<p role="status" className="skill-feedback">{message}</p><footer><button className="skill-details-link" onClick={() => download(selected)}><ArrowDownToLine size={15}/>下载技能文件</button>{selectedRecord && <><button className="skill-details-link" disabled={disabled} onClick={() => void change(selected, 'remove')}>移除</button>{selectedRecord.enabled && <button className="skill-details-link" disabled={disabled} onClick={() => void change(selected, 'disable')}>停用</button>}</>}{actions(selected)}</footer></>}
     </dialog>
   </section>;
 }

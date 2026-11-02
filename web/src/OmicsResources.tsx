@@ -13,14 +13,6 @@ const mb = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 type Topic = 'single-cell' | 'spatial' | 'guides' | 'original';
 const topics: {id: Topic; label: string}[] = [{id:'single-cell',label:'单细胞'}, {id:'spatial',label:'空间转录组'}, {id:'guides',label:'专题教程'}, {id:'original',label:'完整原始资料'}];
 
-// Intent: researchers trace an example figure back to data, parameters and runnable code.
-// Domain: cells, spots, count matrices, quality control, marker evidence, provenance.
-// Color world: existing laboratory paper, graphite labels, teal glass, steel, amber.
-// Signature: each figure carries its actual interpretation limits and reproduction inputs.
-// Hierarchy: the selected case and figures lead; downloads follow the input description.
-// Depth/surfaces: paper page with white image sheets and quiet rules, no shadow cards.
-// Typography/spacing: inherited humanist UI, 30/22/16/14 scale, 4px grid, 24px groups.
-// Avoid fake live results, decorative cell art and a second analysis dashboard.
 export default function OmicsResources({onNavigate}: {onNavigate: (view: MainView) => void}) {
   const [topic, setTopic] = useState<Topic>('single-cell');
   const [busy, setBusy] = useState(false);
@@ -50,14 +42,14 @@ export default function OmicsResources({onNavigate}: {onNavigate: (view: MainVie
   }
 
   return <div className="omics-scroll"><div className="omics-layout">
-    <header className="omics-heading"><p className="omics-kicker">V1.0 · 示例与复现资料</p><h1>读懂一张图，也找到它的来处</h1><p>从单细胞到空间转录组，查看示例结果、理解方法，再带着数据与代码到外部环境复现。</p></header>
+    <header className="omics-heading"><h1>组学案例</h1><p>单细胞与空间转录组示例结果，附带数据、代码和参数，可在外部 R / Python 环境中复现。资料版本 V1.0。</p></header>
     <nav className="omics-tabs" aria-label="组学资料分类">{topics.map(item => <button key={item.id} aria-pressed={topic === item.id} onClick={() => setTopic(item.id)}>{item.label}</button>)}</nav>
     {example && <article key={example.id} className="omics-case">
       <div className="omics-case-intro"><div><p className="omics-kicker">{example.label} · 附件示例</p><h2>{example.title}</h2><p>{example.description}</p></div><button className="button" onClick={() => setTopic('guides')}><BookOpen size={15}/>阅读专题教程</button></div>
       <dl className="omics-facts">{example.facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <p className="omics-note">{example.boundary}</p>
       <section className="omics-reproduce" aria-label={`${example.label}下载与复现`}>
-        <div className="omics-download-heading"><div><h3>下载这个案例，开始复现</h3><p>包含必需输入、适配代码和 macOS / Windows 指南；无需模型密钥。</p></div><a className="button primary" href={manifest.packages[example.id].url} download><ArrowDownToLine size={15}/>下载复现包 · {mb(manifest.packages[example.id].bytes)}</a></div>
+        <div className="omics-download-heading"><div><h3>复现包</h3><p>包含必需输入、适配代码和 macOS / Windows 指南；无需模型密钥。</p></div><a className="button primary" href={manifest.packages[example.id].url} download><ArrowDownToLine size={15}/>下载复现包 · {mb(manifest.packages[example.id].bytes)}</a></div>
         <div className="omics-file-links">{example.files.map(([name, label]) => <a key={name} href={`${base}${example.id}/${name}`} download><FileCode2 size={14}/>{label}<ArrowDownToLine size={12}/></a>)}</div>
         <details className="omics-environment"><summary>查看环境配置与运行步骤</summary>
           {example.id === 'single-cell' ? <><p>macOS / Windows 均先安装官方 R，在解压目录的 R 或 RStudio 中运行：</p><pre><code>source("install.R")</code></pre><p>脚本补齐 Seurat、ggplot2、Matrix、patchwork、ggdendro、viridisLite；随后在终端运行：</p></> : <><p>安装对应平台 Miniconda 后进入解压目录；Windows 使用 Miniconda Prompt，macOS 使用终端：</p><pre><code>{'conda env create -f environment.yml\nconda activate bioinfobuddy-st'}</code></pre><p>这是独立环境定义，不是完整锁文件；不会要求改写全局 Conda 配置。运行：</p></>}

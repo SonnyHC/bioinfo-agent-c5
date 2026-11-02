@@ -29,14 +29,12 @@ function recover(previous: Conversation): Conversation {
   return { ...previous, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
 }
 
-// Intent: researchers describe an analysis and inspect the resulting plan.
-// Hierarchy: the composer/response is central, data and history stay in the rail.
-// Domain: samples, groups, tables, analysis plans, figures, reproducible records.
-// Color world: laboratory paper, graphite, teal glass, steel rules, amber errors.
-// Signature: live scientific-tool steps with direct links into the plotting sheet.
-// Avoid decorative charts, metric cards and a second competing dashboard.
-// Palette/depth: existing --ink/--sheet/--teal tokens, subtle inset input.
-// Type: 14px UI, 30px empty-state title; 4px spacing grid, 240px rail.
+const examplePrompts = [
+  '单细胞质控时，nFeature_RNA 和线粒体比例的阈值应该怎么定？',
+  '我有一份 RNA-seq count 矩阵，差异分析选 DESeq2 还是 edgeR？',
+  '两组样本量都只有 3 个，箱线图上还适合做 t 检验吗？',
+];
+
 function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>void }) {
   return <div className="chat-message-text">{messageParts(text).map((part,index) => part.href ? <a key={index} href={part.href} onClick={event=>{if(!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey){event.preventDefault();onOpen(part.href!);}}}>{part.text} ↗</a> : <span key={index}>{part.text}</span>)}</div>;
 }
@@ -220,31 +218,31 @@ export default function Chat() {
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
-    <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>对话会保存在此浏览器</p>}</nav>
-    <div className="chat-rail-bottom"><button disabled={busy} onClick={()=>{mobileNavigation.current?.close();openSettings();}}><Settings2 size={16}/>{apiKey?'API 模型设置':'配置模型 API'}</button></div>
+    <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>暂无对话。对话记录保存在此浏览器。</p>}</nav>
+    <div className="chat-rail-bottom"><button disabled={busy} onClick={()=>{mobileNavigation.current?.close();openSettings();}}><Settings2 size={16}/>{apiKey?'模型设置':'配置模型 API'}</button></div>
   </>;
   return <div className="chat-shell">
     <aside className="chat-rail" aria-label="主侧边栏">{navigation}</aside>
     <dialog ref={mobileNavigation} className="chat-navigation-dialog" aria-label="导航菜单"><button className="icon-button chat-menu-close" aria-label="关闭导航菜单" onClick={()=>mobileNavigation.current?.close()}><X size={20}/></button>{navigation}</dialog>
     <main className="chat-main">
-      <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'?(conversation.messages.length?conversation.title:'生信分析'):viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
+      <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'?(conversation.messages.length?conversation.title:'新对话'):viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
       <section className="chat-conversation" hidden={view!=='chat'} aria-label="AI 对话">
       <div className="chat-scroll">
-        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><p>连接国内模型 API，讨论生信问题，或导入表格生成图表。</p><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => void example()}><Database size={17}/>试用分组样例</button></div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
+        {!conversation.messages.length ? <section className="chat-welcome"><h1>生信分析助手</h1><p>讨论分析方法，或导入表格，让模型检查字段并生成待你确认的绘图方案。</p><div className="chat-starters"><button className="button primary" disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={15}/>导入表格</button><button className="button" disabled={busy || loading} onClick={() => void example()}>载入样例数据</button></div><div className="chat-examples"><span>可以这样问</span>{examplePrompts.map(prompt => <button key={prompt} disabled={busy || loading} onClick={() => setInput(prompt)}>{prompt}</button>)}</div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
           {message.role === 'assistant' && <Dna className="chat-avatar" size={22}/>}
           <div>{message.content && <MessageText text={message.content} onOpen={showRoute}/>}{message.tool_calls?.map(call => { const event = conversation.events.find(item => item.id === call.id); return <div className="tool-step" key={call.id}>{event?.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event?.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}<span>{toolLabels[call.function.name] || call.function.name}{event?.detail && ` · ${event.detail}`}</span>{event?.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}</div>; })}</div>
         </div>)}</div>}
         <div ref={end}/>
       </div>
       <div className="chat-compose-area">
-        {!apiKey && <div className="chat-connection"><span>选择模型并填写 API Key，即可开始对话。</span><button className="text-link" onClick={openSettings}>配置 API ↗</button></div>}
+        {!apiKey && <div className="chat-connection"><span>尚未配置模型 API，对话功能暂不可用；绘图和其他页面不受影响。</span><button className="text-link" onClick={openSettings}>配置模型 API</button></div>}
         {error && <div className="chat-error" role="alert"><span>{error}</span><button className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15}/></button></div>}
         {conversation.skillId && <div className="chat-skill-strip"><Package size={14}/><span>本轮技能：{skillCatalog.find(skill => skill.id === conversation.skillId)?.name ?? conversation.skillId}</span><button disabled={busy} onClick={()=>navigate('skills')}>管理技能</button><button disabled={busy} aria-label="取消本轮指定技能" onClick={()=>{const next = {...conversation,skillId:undefined};if(next.messages.length)void persist(next).catch(reason=>setError(String(reason.message)));else setConversation(next);}}>取消指定<X size={12}/></button></div>}
-        {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前选择' : `${datasets.length} 份数据`}</span><a href={`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();showRoute(`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
+        {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前数据：' : `已导入 ${datasets.length} 份数据，最近：`}</span><a href={`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();showRoute(`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
-          <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
-          <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || 'CSV · TSV · XLSX · 最大 2 MB'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
-        </form><p className="chat-footnote">表格由本站分析服务处理 · 模型接收必要预览 · Shift + Enter 换行</p>
+          <textarea aria-label="分析要求" placeholder="描述数据或分析问题" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
+          <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || '可附加 CSV、TSV、XLSX（≤ 2 MB）'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
+        </form><p className="chat-footnote">表格在本站分析服务中处理，模型只接收必要的数据预览。Enter 发送，Shift + Enter 换行。</p>
       </div>
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
@@ -256,7 +254,7 @@ export default function Chat() {
     </main>
     <dialog ref={dialog} className="model-dialog" onCancel={closeSettings}>
       <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={closeSettings}><X size={19}/></button></div>
-      <p>选择提供商，使用自己的 API Key。</p>
+      <p>选择模型提供商并填写该平台的 API Key。</p>
       <form onSubmit={event => { event.preventDefault(); saveSettings(); }}>
         <label className="field"><span>模型提供商</span><select value={provider} onChange={event => {
           const next = event.target.value as Provider;

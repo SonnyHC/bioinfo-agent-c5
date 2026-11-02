@@ -3,10 +3,6 @@ import { ArrowUpRight, ChevronLeft, ChevronRight, Download, Search } from 'lucid
 import catalog from './data/reference-genomes.json';
 import './reference-genomes.css';
 
-// Researchers choose an assembly, then download matching sequence and annotation.
-// Reuse the app's paper, graphite, teal, steel-rule and muted-ink palette.
-// The paired FASTA/annotation links and assembly accession lead each catalog row.
-// A searchable catalog replaces decorative cards, counts and opaque vendor IDs.
 const PAGE_SIZE = 25;
 export default function ReferenceGenomes() {
   const [query, setQuery] = useState('');
@@ -29,7 +25,7 @@ export default function ReferenceGenomes() {
   function reset() { setQuery(''); setCategory('all'); setSource('all'); setPage(0); }
   function goToPage(next: number) { setPage(next); panel.current?.scrollTo({top:0}); }
   return <section ref={panel} className="genome-panel" aria-labelledby="genome-heading">
-    <div className="genome-heading"><div><p className="genome-eyebrow">REFERENCE GENOMES</p><h1 id="genome-heading">参考基因组</h1><p>按物种和版本查找，下载对应的基因组序列与基因注释。</p></div><span className="genome-date">链接核对于 {catalog.checkedAt}</span></div>
+    <div className="genome-heading"><div><h1 id="genome-heading">参考基因组</h1><p>按物种和版本查找，下载对应的基因组序列与基因注释。</p></div><span className="genome-date">链接核对于 {catalog.checkedAt}</span></div>
     <div className="genome-filters">
       <label className="genome-search"><Search size={18}/><input type="search" aria-label="搜索参考基因组" placeholder="搜索物种、版本或 GCA / GCF 登录号" value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}}/></label>
       <label><span>物种分类</span><select value={category} onChange={e=>{setCategory(e.target.value);setPage(0);}}><option value="all">全部分类</option>{[...new Set(catalog.entries.map(e=>e.category))].map(item=><option key={item}>{item}</option>)}</select></label>
