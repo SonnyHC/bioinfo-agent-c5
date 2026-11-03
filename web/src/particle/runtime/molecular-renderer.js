@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createMolecules } from '../molecules.js';
 import { fitMolecule, MOLECULE_CAMERA } from './molecular-fit.js';
+import { createParticleBrush } from './molecular-brush.js';
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const defaults = { projection: 'perspective', zoom: 1, brush: 1.1, materials: {} };
@@ -17,9 +18,9 @@ const pointVertex = `
   attribute vec3 destination;
   attribute vec3 destinationColor;
   attribute vec3 scatter;
-  uniform float uMix, uScaleFrom, uScaleTo, uPointSize, uPixelRatio, uBrush;
-  uniform vec2 uPointer, uPrevious, uVelocity;
-  uniform float uAspect, uDark;
+  attribute vec2 brushOffset;
+  uniform float uMix, uScaleFrom, uScaleTo, uPointSize, uPixelRatio, uDark;
+  uniform vec2 uResolution;
   varying vec3 vColor;
   varying float vOpacity;
   void main() {
@@ -27,19 +28,9 @@ const pointVertex = `
     vec3 p = mix(position * uScaleFrom, destination * uScaleTo, uMix);
     p = p * (1.0 - spread * 0.13) + scatter * spread * 0.48;
     vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
-    vec4 projected = projectionMatrix * mvPosition;
-    vec2 q = projected.xy / projected.w;
-    q.x *= uAspect;
-    vec2 segment = uPointer - uPrevious;
-    float along = clamp(dot(q - uPrevious, segment) / max(dot(segment, segment), 0.00001), 0.0, 1.0);
-    vec2 difference = q - (uPrevious + segment * along);
-    float distanceToBrush = length(difference);
-    float edgeRoom = 1.0 - smoothstep(0.72, 0.96, max(abs(q.x / uAspect), abs(q.y)));
-    float influence = pow(max(0.0, 1.0 - distanceToBrush / (0.38 * 1.5)), 2.0) * uBrush * edgeRoom;
-    // A tangential brush keeps particles around the pointer instead of opening a hole.
-    vec2 swirl = vec2(-difference.y, difference.x);
-    mvPosition.xy += influence * (swirl * 0.16 + uVelocity * 0.22);
     gl_Position = projectionMatrix * mvPosition;
+    // The brush integrates CSS-pixel springs on the CPU, independently of projection.
+    gl_Position.xy += vec2(brushOffset.x, -brushOffset.y) * 2.0 / uResolution * gl_Position.w;
     float depth = 1.0 - smoothstep(6.0, 10.0, -mvPosition.z);
     gl_PointSize = uPointSize * uPixelRatio * (0.85 + 0.3 * (scatter.z * 0.5 + 0.5)) * clamp(8.0 / -mvPosition.z, 0.8, 1.6);
     vec3 baseColor = mix(color, destinationColor, uMix);
@@ -99,11 +90,15 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
     scatter[i * 3 + 2] = z;
   }
   pointsGeometry.setAttribute('scatter', new THREE.BufferAttribute(scatter, 3));
+  const brush = createParticleBrush(count);
+  const brushAttribute = new THREE.BufferAttribute(brush.offsets, 2).setUsage(THREE.DynamicDrawUsage);
+  pointsGeometry.setAttribute('brushOffset', brushAttribute);
+  const clipMatrix = new THREE.Matrix4();
+  const brushFrame = { positions: models[0].positions, destination: models[1].positions, scatter };
   const uniforms = {
     uMix: { value: 0 }, uScaleFrom: { value: 1 }, uScaleTo: { value: 1 },
     uPointSize: { value: 1.9 }, uPixelRatio: { value: 1 }, uDark: { value: 0 },
-    uPointer: { value: new THREE.Vector2() }, uPrevious: { value: new THREE.Vector2() },
-    uVelocity: { value: new THREE.Vector2() }, uAspect: { value: 1 }, uBrush: { value: 0 },
+    uResolution: { value: new THREE.Vector2(1, 1) },
   };
   pointMaterial = new THREE.ShaderMaterial({
     uniforms, vertexShader: pointVertex, fragmentShader: pointFragment,
@@ -152,7 +147,8 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
         const halfHeight = MOLECULE_CAMERA.distance * Math.tan(MOLECULE_CAMERA.fov * Math.PI / 360);
         orthographic.left = -halfHeight * w / h; orthographic.right = halfHeight * w / h;
         orthographic.top = halfHeight; orthographic.bottom = -halfHeight; orthographic.updateProjectionMatrix();
-        uniforms.uAspect.value = w / h; uniforms.uPixelRatio.value = ratio;
+        uniforms.uResolution.value.set(w, h); uniforms.uPixelRatio.value = ratio;
+        brush.reset();
         pointsGeometry.setDrawRange(0, w < 480 ? Math.min(count, 6500) : count);
         fittingDirty = true;
       }
@@ -176,16 +172,22 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
       tiltY += ((interaction ? clamp(px * .1, -.1, .1) : 0) - tiltY) * blend;
       body.rotation.set(Math.sin(time * .19) * .07 - .02 + tiltX, .18 + Math.sin(time * .14) * .18 + tiltY, 0);
       body.position.y = Math.sin(time * .3) * .015;
-      uniforms.uBrush.value = interaction ? options.brush : 0;
-      uniforms.uPointer.value.set(px * w / h, py);
-      uniforms.uPrevious.value.set((pointer.previousX / w * 2 - 1) * w / h, 1 - pointer.previousY / h * 2);
-      uniforms.uVelocity.value.set(clamp(pointer.vx / 1600, -1, 1), clamp(-pointer.vy / 1600, -1, 1));
-      renderer.render(scene, options.projection === 'orthographic' ? orthographic : perspective);
+      const camera = options.projection === 'orthographic' ? orthographic : perspective;
+      body.updateMatrixWorld(true);
+      camera.updateMatrixWorld(true);
+      clipMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(body.matrixWorld);
+      const maxOffset = brush.update(Object.assign(brushFrame, {
+        mix, scaleFrom: scales[0], scaleTo: scales[1], matrix: clipMatrix.elements,
+        width: w, height: h, pointer, delta, still, brush: options.brush,
+        drawCount: pointsGeometry.drawRange.count,
+      }));
+      brushAttribute.needsUpdate = true;
+      renderer.render(scene, camera);
       canvas.dataset.sculpture = mix < .5 ? models[0].id : models[1].id;
       canvas.dataset.phase = 'particles';
       canvas.dataset.ready = 'true';
       Object.assign(stats, { frames: stats.frames + 1, time, scene: canvas.dataset.sculpture,
-        phase: canvas.dataset.phase, mix, points: pointsGeometry.drawRange.count,
+        phase: canvas.dataset.phase, mix, maxOffset, points: pointsGeometry.drawRange.count,
         drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
       });
       if (!ready) { ready = true; onReady(); }

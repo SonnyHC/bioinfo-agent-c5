@@ -198,7 +198,8 @@ export function createRenderer(
       const segment = brushX * brushX + brushY * brushY
       const speed = Math.min(1600, Math.hypot(pointer.vx, pointer.vy))
       const radius = Math.min(w, h) * (0.22 + speed / 22000) * 1.5
-      const recovery = Math.exp(-20 * seconds)
+      const recovery = Math.exp(-18 * seconds)
+      const maxBrushOffset = Math.min(w, h) * 0.3
       let maxOffset = 0
       for (let i = 0; i < n; i++) {
         let x = 0,
@@ -271,27 +272,28 @@ export function createRenderer(
             const force = Math.pow(1 - distance / radius, 2) * options.brush
             fx =
               force *
-              (pointer.vx * 0.16 -
-                dy * 0.12 +
-                scatter[i * 2] * (8 + speed * 0.015))
+              (pointer.vx * 0.16 + scatter[i * 2] * speed * 0.2)
             fy =
               force *
-              (pointer.vy * 0.07 +
-                dx * 0.12 +
-                scatter[i * 2 + 1] * (8 + speed * 0.015))
+              (pointer.vy * 0.13 + scatter[i * 2 + 1] * speed * 0.2)
+            const displacement = Math.hypot(fx, fy)
+            if (displacement > maxBrushOffset) {
+              fx *= maxBrushOffset / displacement
+              fy *= maxBrushOffset / displacement
+            }
           }
         }
         // Closed-form critical damping: return time does not depend on fps.
         const gapX = offsets[index] - fx,
           gapY = offsets[index + 1] - fy
-        const springX = offsets[index + 2] + 20 * gapX,
-          springY = offsets[index + 3] + 20 * gapY
+        const springX = offsets[index + 2] + 18 * gapX,
+          springY = offsets[index + 3] + 18 * gapY
         offsets[index] = fx + (gapX + springX * seconds) * recovery
         offsets[index + 1] = fy + (gapY + springY * seconds) * recovery
         offsets[index + 2] =
-          (offsets[index + 2] - 20 * springX * seconds) * recovery
+          (offsets[index + 2] - 18 * springX * seconds) * recovery
         offsets[index + 3] =
-          (offsets[index + 3] - 20 * springY * seconds) * recovery
+          (offsets[index + 3] - 18 * springY * seconds) * recovery
         const ox = offsets[index],
           oy = offsets[index + 1]
         maxOffset = Math.max(maxOffset, Math.hypot(ox, oy))
