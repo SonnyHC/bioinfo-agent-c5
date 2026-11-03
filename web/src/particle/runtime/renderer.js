@@ -197,7 +197,7 @@ export function createRenderer(
         brushY = pointer.y - pointer.previousY
       const segment = brushX * brushX + brushY * brushY
       const speed = Math.min(1600, Math.hypot(pointer.vx, pointer.vy))
-      const radius = Math.min(w, h) * (0.22 + speed / 22000)
+      const radius = Math.min(w, h) * (0.22 + speed / 22000) * 1.5
       const recovery = Math.exp(-20 * seconds)
       let maxOffset = 0
       for (let i = 0; i < n; i++) {

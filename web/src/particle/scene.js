@@ -82,7 +82,7 @@ export function makeProtein() {
 
 // Keep pose time continuous while click transitions can reverse from the exact
 // current shape. Only the existing motion owner advances this clock.
-export function createBiologyTimeline(scenes = [makeHelix(), makeProtein()], {hold = 6, morph = 1.15} = {}) {
+export function createBiologyTimeline(scenes = [makeHelix(), makeProtein()], {hold = 3, morph = 1.15} = {}) {
   if (scenes.length !== 2 || !Number.isFinite(hold) || !Number.isFinite(morph) || hold <= 0 || morph <= 0) {
     throw new RangeError('Two scenes and positive finite hold/morph durations are required.');
   }

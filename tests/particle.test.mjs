@@ -42,20 +42,20 @@ test('DNA and folded protein remain finite, immutable and inside desktop/mobile 
 const simpleScenes = () => ['double-helix', 'protein'].map(id => ({ id, points: [], animate: () => () => {}, view: [0, 0] }));
 const close = (actual, expected, message) => assert(Math.abs(actual - expected) < 1e-8, message ?? `${actual} != ${expected}`);
 
-test('automatic sequence holds each shape, morphs both ways and keeps ambient rotation continuous', () => {
+test('automatic sequence holds each shape for three seconds, morphs both ways and keeps ambient rotation continuous', () => {
   const timeline = createBiologyTimeline(simpleScenes());
   close(timeline.at(0).mix, 0);
-  close(timeline.at(5.9).mix, 0);
-  const middle = timeline.at(6.575);
+  close(timeline.at(2.9).mix, 0);
+  const middle = timeline.at(3.575);
   assert.equal(middle.from.id, 'double-helix');
   assert.equal(middle.to.id, 'protein');
   assert.equal(middle.transition, 'morph');
   close(middle.mix, .5);
-  close(timeline.at(7.15).mix, 1);
-  close(timeline.at(13).mix, 1);
-  close(timeline.at(13.725).mix, .5);
-  close(timeline.at(14.3).mix, 0);
-  for (const time of [6, 7.15, 13.15, 14.3, 142.999]) {
+  close(timeline.at(4.15).mix, 1);
+  close(timeline.at(7.05).mix, 1);
+  close(timeline.at(7.725).mix, .5);
+  close(timeline.at(8.3).mix, 0);
+  for (const time of [3, 4.15, 7.15, 8.3, 83]) {
     const frame = timeline.at(time);
     close(frame.age, time);
     close(frame.nextAge, time);
@@ -68,15 +68,15 @@ test('click interrupts the wait, reverses a morph from its current position and 
   timeline.next(1);
   close(timeline.at(1).mix, 0);
   const before = timeline.at(1.4).mix;
-  assert(before > 0 && before < 1, 'a click must begin morphing before the six-second automatic wait');
+  assert(before > 0 && before < 1, 'a click must begin morphing before the three-second automatic wait');
   timeline.next(1.4);
   close(timeline.at(1.4).mix, before, 'repeated click must not jump to a complete shape');
   assert(timeline.at(1.5).mix < before, 'second click reverses toward DNA immediately');
   close(timeline.at(2.55).mix, 0);
   // A manual change does not permanently pin the sequence to one object.
-  assert(timeline.at(8.55).mix > 0);
-  timeline.next(9, true);
-  assert([0, 1].includes(timeline.at(9).mix), 'static/manual selection must use a complete endpoint');
+  assert(timeline.at(5.55).mix > 0);
+  timeline.next(6, true);
+  assert([0, 1].includes(timeline.at(6).mix), 'static/manual selection must use a complete endpoint');
 
   const earlyMorph = createBiologyTimeline(simpleScenes());
   earlyMorph.next(1);
