@@ -1,4 +1,4 @@
-import { guideText, omicsGuides } from './omics-content';
+import { guideText, skillGuides as omicsGuides } from './omics-content';
 
 export interface AnalysisSkill {
   id: string;

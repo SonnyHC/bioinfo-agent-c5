@@ -1,0 +1,139 @@
+{
+  "sourceDirectory": "docs/tutorial-sources",
+  "transformation": "Original wording retained; source headings shifted down one level. Shared summary, headings and closing advice are retained in both split tutorials.",
+  "sources": [
+    {
+      "file": "01_过滤、整合与聚类.md",
+      "bytes": 3112,
+      "sha256": "da55a4077db937f7621114bdc931254246e4eb42aef68c5d7236d020ea10e751",
+      "lineCount": 54,
+      "nonemptyLines": 34,
+      "coveredNonemptyLines": 34
+    },
+    {
+      "file": "02_细胞注释.md",
+      "bytes": 2462,
+      "sha256": "fbb5cd7a13812e51a8222a87124f14401b5eb371544c7547aa26aa848710824b",
+      "lineCount": 21,
+      "nonemptyLines": 15,
+      "coveredNonemptyLines": 15
+    },
+    {
+      "file": "03_差异表达与功能富集分析.md",
+      "bytes": 10580,
+      "sha256": "386283f9c715c01641b68e30a9f76cb92b5c51e5f52aa32edc134728562bc7e2",
+      "lineCount": 185,
+      "nonemptyLines": 124,
+      "coveredNonemptyLines": 124
+    },
+    {
+      "file": "04_细胞注释.md",
+      "bytes": 8235,
+      "sha256": "229d14027f6962fb3841966f1e661776912f4b7bb925185b779b4b5a55542d42",
+      "lineCount": 90,
+      "nonemptyLines": 57,
+      "coveredNonemptyLines": 57
+    }
+  ],
+  "guides": [
+    {
+      "id": "qc-integration",
+      "spans": [
+        {
+          "source": "01_过滤、整合与聚类.md",
+          "startLine": 1,
+          "endLine": 54
+        }
+      ],
+      "markdownSha256": "d8a4475a693052fac7ab20e62a31ef8f4a3eedd07d47c76a83d1b072d4a7c76e"
+    },
+    {
+      "id": "cell-annotation",
+      "spans": [
+        {
+          "source": "04_细胞注释.md",
+          "startLine": 1,
+          "endLine": 90
+        },
+        {
+          "source": "02_细胞注释.md",
+          "startLine": 1,
+          "endLine": 21
+        }
+      ],
+      "markdownSha256": "2c7813f01ba69ab6bd0d4436f7007e157c8a59627294c61a0c466c284788ce17"
+    },
+    {
+      "id": "differential-analysis",
+      "spans": [
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 1,
+          "endLine": 28
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 59,
+          "endLine": 93
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 131,
+          "endLine": 156
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 163,
+          "endLine": 165
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 167,
+          "endLine": 174
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 179,
+          "endLine": 184
+        }
+      ],
+      "markdownSha256": "fc4b096f4e0a5c8dea0347e90b79dbd63ad30e55ee970d132c91e79c7601f529"
+    },
+    {
+      "id": "enrichment-analysis",
+      "spans": [
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 29,
+          "endLine": 60
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 94,
+          "endLine": 136
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 157,
+          "endLine": 164
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 166,
+          "endLine": 166
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 175,
+          "endLine": 182
+        },
+        {
+          "source": "03_差异表达与功能富集分析.md",
+          "startLine": 185,
+          "endLine": 185
+        }
+      ],
+      "markdownSha256": "b0f2a42a1d6687884cbc09a39264972a5724e8bb339c1fae26ffca89eea7dffc"
+    }
+  ]
+}

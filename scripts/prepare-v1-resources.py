@@ -11,6 +11,7 @@ import io
 import json
 from pathlib import Path
 import re
+import runpy
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -262,22 +263,6 @@ versions["python"] = platform.python_version()
     return source
 
 
-def guide_markdown(guide):
-    rows = ['# ' + guide['title'], guide['summary'], '适用范围：教学与外部环境复现；本站不运行原始组学分析。']
-    for section in guide['sections']:
-        rows.append('## ' + section['title'])
-        rows.extend(section.get('paragraphs', []))
-        if 'items' in section:
-            rows.append('\n'.join('- ' + item for item in section['items']))
-        if 'table' in section:
-            table = section['table']
-            rows.append('| ' + ' | '.join(table['headers']) + ' |\n| ' + ' | '.join(['---'] * len(table['headers'])) + ' |\n' + '\n'.join('| ' + ' | '.join(row) + ' |' for row in table['rows']))
-        if 'screenshot' in section:
-            rows.append('![' + section['caption'] + '](screenshots/' + section['screenshot'] + ')')
-    rows.extend(['## 官方参考', '\n'.join('- [' + item['label'] + '](' + item['url'] + ')' for item in guide['sources'])])
-    return '\n\n'.join(rows) + '\n'
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('archive', type=Path)
@@ -344,14 +329,8 @@ for path in sorted((root / "results").glob("[0-9][0-9]_*.png")):
             py_files[source.removeprefix(spatial + '示例数据与代码/')] = data
     manifest['packages']['single-cell'] = write('single-cell-reproduction.zip', package(r_files))
     manifest['packages']['spatial'] = write('spatial-reproduction.zip', package(py_files))
-    guides = json.loads((ROOT / 'web/src/data/omics-guides.json').read_text())
-    for guide in guides:
-        write('guides/' + guide['id'] + '.md', guide_markdown(guide))
-    guide_files = {guide['id'] + '.md': guide_markdown(guide) for guide in guides}
-    screenshots = {section['screenshot'] for guide in guides for section in guide['sections'] if section.get('screenshot')}
-    for name in sorted(screenshots):
-        guide_files['screenshots/' + name] = (OUT / 'guides/screenshots' / name).read_bytes()
-    manifest['packages']['guides'] = write('guides-reproduction.zip', package(guide_files))
+    prepare_guides = runpy.run_path(str(ROOT / 'scripts/prepare-omics-guides.py'))['prepare_guides']
+    manifest['packages']['guides'] = prepare_guides()
     write('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
     (ROOT / 'web/src/data/omics-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
     print(json.dumps({'source_files': len(files), 'original_bytes': len(archive), 'parts': len(original['parts']), 'package_bytes': {k: v['bytes'] for k, v in manifest['packages'].items()}}, ensure_ascii=False))

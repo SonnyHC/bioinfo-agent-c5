@@ -237,7 +237,7 @@ export default function Chat() {
       </div>
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
-      {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
+      {view==='tutorial'&&<Tutorial/>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
       {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
       {(view==='analysis'||view==='omics')&&<section className="analysis-hub" aria-label="数据与绘图">

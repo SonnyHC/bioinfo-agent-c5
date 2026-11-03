@@ -73,12 +73,7 @@ test('case and guide resources exist and packaged metadata matches actual downlo
     for (const [file] of item.files) assert(statSync(local(`/resources/v1/${item.id}/${file}`)).size > 0);
   }
   for (const guide of omicsGuides) {
-    assert(statSync(local(`/resources/v1/guides/${guide.id}.md`)).size > 0);
-    for (const section of guide.sections) if (section.screenshot) {
-      const bytes = readFileSync(local(`/resources/v1/guides/screenshots/${section.screenshot}`));
-      assert.equal(bytes[0],0xff);
-      assert.equal(bytes[1],0xd8);
-    }
+    assert.equal(readFileSync(local(`/resources/v1/guides/${guide.id}.md`), 'utf8'), guide.markdown);
   }
 });
 

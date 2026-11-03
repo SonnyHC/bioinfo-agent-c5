@@ -1,4 +1,5 @@
 import guides from './data/omics-guides.json';
+import skillReading from './data/skill-guides.json';
 
 export interface GuideSection {
   title: string;
@@ -8,13 +9,18 @@ export interface GuideSection {
   screenshot?: string;
   caption?: string;
 }
-export interface OmicsGuide {
+interface SkillGuideReading {
   id: string; title: string; summary: string; source: string;
   sections: GuideSection[];
   sources: {label: string; url: string}[];
 }
+export interface OmicsGuide {
+  id: string; title: string; summary: string; source: string; markdown: string;
+}
 export const omicsGuides: OmicsGuide[] = guides;
-export function guideText(guide: OmicsGuide): string {
+// Tutorial source documents are independent of the curated agent guidance.
+export const skillGuides: SkillGuideReading[] = skillReading;
+export function guideText(guide: SkillGuideReading): string {
   return `# ${guide.title}\n\n${guide.summary}\n\n` + guide.sections.map(section =>
     `## ${section.title}\n\n` + (section.paragraphs ?? []).join('\n\n') + '\n' +
     (section.items ?? []).map(item => '- ' + item).join('\n') + '\n' +
