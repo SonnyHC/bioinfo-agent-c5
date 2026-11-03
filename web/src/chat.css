@@ -1,6 +1,6 @@
 .chat-shell{height:100dvh;min-height:480px;display:flex;background:var(--sheet);font-size:14px}
 .chat-rail{width:240px;flex-shrink:0;background:var(--lab-paper);border-right:1px solid var(--rule);padding:28px 16px 16px;display:flex;flex-direction:column;gap:16px}
-.chat-brand{display:flex;align-items:center;gap:8px;color:var(--accent);padding:0 8px;margin-bottom:20px}.chat-brand strong{color:var(--ink);font-size:15px;font-weight:600;letter-spacing:-.2px}
+.chat-brand{display:flex;align-items:center;gap:8px;color:var(--accent);padding:0 8px;margin-bottom:20px}.chat-brand strong{color:var(--accent);font-size:15px;font-weight:600;letter-spacing:-.2px}
 .new-chat{justify-content:flex-start;background:var(--sheet);min-height:34px}
 .chat-section-label{font-size:11px;color:var(--ink-tertiary);padding:12px 8px 0}.chat-history{flex:1;overflow:auto;min-height:0}.chat-history button{width:100%;display:flex;align-items:center;gap:10px;padding:7px 8px;text-align:left;border-radius:6px;color:var(--ink-secondary);font-size:12px}.chat-history button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chat-history button.active{background:var(--inset);color:var(--ink)}.chat-history button:hover{background:var(--inset)}.chat-history p{font-size:12px;color:var(--ink-tertiary);padding:8px}
 .chat-rail-bottom{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--ink-tertiary)}.chat-rail-bottom .status-dot{background:var(--accent);margin-right:7px}
@@ -17,7 +17,7 @@
 .chat-primary-nav{display:flex;flex-direction:column;gap:4px}
 .chat-primary-nav button{display:flex;align-items:center;gap:10px;width:100%;min-height:34px;padding:6px 10px;border-radius:6px;text-align:left;color:var(--ink-secondary);font-size:13px}
 .chat-primary-nav button:hover:not(:disabled){background:var(--inset);color:var(--ink)}
-.chat-primary-nav button.active{background:var(--sheet);color:var(--ink);font-weight:600;box-shadow:inset 2px 0 0 var(--accent),0 0 0 1px var(--rule)}
+.chat-primary-nav button.active{background:var(--accent-wash);color:var(--accent);font-weight:600;box-shadow:inset 2px 0 0 var(--accent),0 0 0 1px var(--rule)}
 .chat-primary-nav button:disabled{color:var(--ink-muted);cursor:default;opacity:1}
 .chat-primary-nav small{margin-left:auto;font-size:11px;color:var(--ink-muted)}
 .chat-conversation{flex:1;min-height:0;display:flex;flex-direction:column}
