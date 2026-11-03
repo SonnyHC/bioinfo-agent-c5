@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMolecules } from '../web/src/particle/molecules.js';
 
-test('solid DNA and protein have finite indexed surfaces with normalized smooth normals', () => {
+test('DNA and protein sampling surfaces have finite indexed geometry and normalized normals', () => {
   const models = createMolecules({samples:1024});
   try {
     assert.deepEqual(models.map(model => model.id),['double-helix','protein']);
     for (const model of models) {
       const {geometry,bounds} = model;
       const position = geometry.getAttribute('position'), normal = geometry.getAttribute('normal'), color = geometry.getAttribute('color');
-      assert(geometry.index.count > 10000 && geometry.index.count/3 < 45000, 'keep the surface detailed within the rendering budget');
+      assert(geometry.index.count > 10000 && geometry.index.count/3 < 45000, 'keep the surface detailed within the geometry budget');
       assert.equal(position.count,normal.count);
       assert.equal(position.count,color.count);
       assert([...position.array,...normal.array,...color.array].every(Number.isFinite));
@@ -33,7 +33,7 @@ test('solid DNA and protein have finite indexed surfaces with normalized smooth 
   } finally { models.forEach(model=>model.geometry.dispose()); }
 });
 
-test('transition particles deterministically sample the same centered solid surfaces and colors', () => {
+test('particles deterministically sample centered DNA and protein surfaces and colors', () => {
   const first = createMolecules({samples:1536}), second = createMolecules({samples:1536});
   try {
     for(let index=0;index<first.length;index++) {
@@ -60,7 +60,7 @@ test('transition particles deterministically sample the same centered solid surf
   } finally { [...first,...second].forEach(model=>model.geometry.dispose()); }
 });
 
-test('sample budgets reject invalid input before constructing meshes', () => {
+test('sample budgets reject invalid input before constructing sampling surfaces', () => {
   for(const samples of [0,-1,1.5,Infinity,NaN,100001]) assert.throws(()=>createMolecules({samples}),RangeError);
 });
 

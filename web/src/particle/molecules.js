@@ -1,7 +1,7 @@
 import { BufferGeometry, Float32BufferAttribute, Color } from 'three';
 
-// Shared surfaces for the solid models and their particle transitions. These are
-// authored molecular illustrations: ribbons, sheet arrows and connecting loops.
+// Sampling surfaces for particle-only molecular illustrations. Ribbons, sheet
+// arrows and connecting loops define the point clouds and their transitions.
 const TAU = Math.PI * 2;
 const add = (a, b) => a.map((v, i) => v + b[i]);
 const sub = (a, b) => a.map((v, i) => v - b[i]);

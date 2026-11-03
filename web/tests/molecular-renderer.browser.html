@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- Development-only regression: open /tests/molecular-renderer.browser.html on the Vite dev server. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Molecular particle WebGL regression</title>
+  <style>
+    body { margin: 24px; color: #20304b; background: #fafbfe; font: 14px/1.5 system-ui, sans-serif; }
+    h1 { font-size: 22px; }
+    #status { font-weight: 700; }
+    [data-result="pass"] #status { color: #14633c; }
+    [data-result="fail"] #status { color: #b3261e; }
+    canvas { display: block; width: 620px; height: 530px; --poster-ground: #fafbfe; }
+    .stage { overflow: auto; border: 1px solid #dce2ee; width: fit-content; max-width: 100%; margin: 16px 0; }
+    table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    td, th { padding: 5px 10px; border-bottom: 1px solid #dce2ee; text-align: left; }
+    .fail { color: #b3261e; }
+    code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body data-result="running">
+  <h1>Molecular particle WebGL regression</h1>
+  <p id="status" role="status">RUNNING</p>
+  <p>Real WebGL draws using the production renderer and timeline. No animation loop is created.</p>
+  <div class="stage"><canvas aria-label="Molecular renderer regression preview"></canvas></div>
+  <table>
+    <thead><tr><th>Case</th><th>Mix</th><th>Points</th><th>Triangles</th><th>Draw calls</th><th>Visible samples</th><th>Result</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table>
+  <pre id="error"></pre>
+  <script type="module">
+    import { createMolecularRenderer } from '../src/particle/runtime/molecular-renderer.js';
+    import { createBiologyTimeline } from '../src/particle/scene.js';
+
+    const canvas = document.querySelector('canvas');
+    const rows = document.querySelector('#results');
+    const status = document.querySelector('#status');
+    const report = { passed: 0, failed: 0, cases: [] };
+    const timeline = createBiologyTimeline();
+    let renderer, pixels, readyCalls = 0;
+    const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+    function pointer() {
+      const x = canvas.clientWidth * .5, y = canvas.clientHeight * .5;
+      return { active: true, x, y, previousX: x - 30, previousY: y + 15, vx: 900, vy: -450 };
+    }
+
+    function verifyPixels(background) {
+      const gl = canvas.getContext('webgl2');
+      const size = canvas.width * canvas.height * 4;
+      if (!pixels || pixels.length !== size) pixels = new Uint8Array(size);
+      gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      assert(gl.getError() === gl.NO_ERROR, 'WebGL must draw without errors');
+      const rgb = background.match(/[\da-f]{2}/gi).map(value => parseInt(value, 16));
+      assert(rgb.every((value, i) => Math.abs(pixels[i] - value) <= 1), 'canvas clear color must match the selected theme');
+      let visible = 0;
+      for (let i = 0; i < pixels.length; i += 64) {
+        if (rgb.some((value, channel) => Math.abs(pixels[i + channel] - value) > 16)) visible++;
+      }
+      assert(visible > 20, 'frame must contain visible particles, not just a cleared canvas');
+      return visible;
+    }
+
+    function checkFrame(name, mix, { still = false, background = '#fafbfe' } = {}) {
+      let stats = {}, visible = 0, error = null;
+      try {
+        const previousFrames = renderer.inspect().frames;
+        renderer.draw(2, pointer(), 1 / 60, still, null, mix);
+        stats = renderer.inspect();
+        assert(stats.frames === previousFrames + 1, 'one requested draw must produce one frame');
+        assert(stats.ready && !stats.contextLost, 'renderer must be ready');
+        assert(stats.mix === mix, 'requested timeline position must be rendered');
+        assert(stats.triangles === 0, 'settled and transitioning frames must contain zero triangles');
+        assert(stats.points > 0, 'particles must remain visible at every timeline position');
+        assert(stats.points === (canvas.clientWidth < 480 ? 6500 : 10000), 'device particle budget must be retained');
+        assert(stats.drawCalls === 1, 'only the particle field should be drawn');
+        assert(stats.phase === 'particles', 'phase must stay particles');
+        visible = verifyPixels(background);
+        report.passed++;
+      } catch (failure) {
+        error = failure.message;
+        report.failed++;
+      }
+      const result = { name, mix, points: stats.points, triangles: stats.triangles, drawCalls: stats.drawCalls, visible, error };
+      report.cases.push(result);
+      const row = document.createElement('tr');
+      if (error) row.className = 'fail';
+      for (const value of [name, mix, stats.points ?? '—', stats.triangles ?? '—', stats.drawCalls ?? '—', visible, error ? `FAIL: ${error}` : 'PASS']) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.append(cell);
+      }
+      rows.append(row);
+    }
+
+    try {
+      renderer = createMolecularRenderer(canvas, timeline, () => readyCalls++);
+      assert(renderer, 'WebGL2 renderer must initialize');
+      for (const [theme, background] of [['light', '#fafbfe'], ['dark', '#111725']]) {
+        canvas.style.setProperty('--poster-ground', background);
+        renderer.invalidateTheme();
+        for (const [device, width, height] of [['desktop', 620, 530], ['mobile', 342, 390]]) {
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+          for (const projection of ['perspective', 'orthographic']) {
+            for (const mode of ['interactive', 'paused', 'brush off']) {
+              renderer.configure({ projection, brush: mode === 'brush off' ? 0 : 1.1 });
+              for (const mix of [0, .5, 1]) {
+                checkFrame(`${theme} / ${device} / ${projection} / ${mode}`, mix, { still: mode === 'paused', background });
+              }
+            }
+          }
+        }
+      }
+      assert(readyCalls === 1, 'ready callback must fire once per renderer');
+      const oldRenderer = renderer;
+      oldRenderer.dispose();
+      oldRenderer.dispose();
+      assert(!canvas.dataset.ready && !canvas.dataset.renderMode, 'dispose must remove renderer state');
+      const oldFrames = oldRenderer.inspect().frames;
+      oldRenderer.draw(2, pointer(), 1 / 60);
+      assert(oldRenderer.inspect().frames === oldFrames, 'disposed renderer must ignore draws');
+      canvas.style.width = '620px';
+      canvas.style.height = '530px';
+      canvas.style.setProperty('--poster-ground', '#fafbfe');
+      renderer = createMolecularRenderer(canvas, timeline, () => readyCalls++);
+      assert(renderer, 'same canvas must accept a fresh renderer after disposal');
+      for (const mix of [0, .5, 1]) checkFrame('same-canvas remount / paused', mix, { still: true });
+      assert(readyCalls === 2, 'remounted renderer must announce its first frame once');
+      document.body.dataset.result = report.failed ? 'fail' : 'pass';
+      status.textContent = `${report.failed ? 'FAIL' : 'PASS'} — ${report.passed} passed, ${report.failed} failed`;
+      document.body.dataset.passed = String(report.passed);
+      document.body.dataset.failed = String(report.failed);
+    } catch (error) {
+      document.body.dataset.result = 'fail';
+      status.textContent = `FAIL — ${error.message}`;
+      document.querySelector('#error').textContent = error.stack;
+      report.failed++;
+    }
+    // The final paused frame stays visible for inspection. A rerun is a reload.
+    addEventListener('pagehide', () => renderer?.dispose(), { once: true });
+  </script>
+</body>
+</html>

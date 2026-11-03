@@ -1,11 +1,9 @@
-// Smooth molecular surfaces and a shared particle field, driven by the host's single RAF.
+// Persistent molecular point clouds, driven by the host's single RAF.
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createMolecules } from '../molecules.js';
 import { fitMolecule, MOLECULE_CAMERA } from './molecular-fit.js';
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
-const smooth = (low, high, value) => { const t = clamp((value - low) / (high - low), 0, 1); return t * t * (3 - 2 * t); };
 const defaults = { projection: 'perspective', zoom: 1, brush: 1.1, materials: {} };
 function settings(value) {
   const next = { ...defaults, ...value };
@@ -21,8 +19,9 @@ const pointVertex = `
   attribute vec3 scatter;
   uniform float uMix, uScaleFrom, uScaleTo, uPointSize, uPixelRatio, uBrush;
   uniform vec2 uPointer, uPrevious, uVelocity;
-  uniform float uAspect;
+  uniform float uAspect, uDark;
   varying vec3 vColor;
+  varying float vOpacity;
   void main() {
     float spread = pow(sin(3.14159265 * uMix), 2.0);
     vec3 p = mix(position * uScaleFrom, destination * uScaleTo, uMix);
@@ -40,48 +39,25 @@ const pointVertex = `
     vec2 outward = difference / max(distanceToBrush, 0.025);
     mvPosition.xy += influence * (outward * 0.13 + uVelocity * 0.22);
     gl_Position = projectionMatrix * mvPosition;
-    gl_PointSize = uPointSize * uPixelRatio * clamp(8.0 / -mvPosition.z, 0.8, 1.6);
-    vColor = mix(color, destinationColor, uMix);
+    float depth = 1.0 - smoothstep(6.0, 10.0, -mvPosition.z);
+    gl_PointSize = uPointSize * uPixelRatio * (0.85 + 0.3 * (scatter.z * 0.5 + 0.5)) * clamp(8.0 / -mvPosition.z, 0.8, 1.6);
+    vec3 baseColor = mix(color, destinationColor, uMix);
+    vColor = mix(baseColor * (0.65 + depth * 0.35), mix(baseColor, vec3(0.9), 0.35), uDark);
+    vOpacity = 0.9 + depth * 0.1;
   }
 `;
 const pointFragment = `
-  uniform float uOpacity;
   varying vec3 vColor;
+  varying float vOpacity;
   void main() {
     float distanceToCenter = length(gl_PointCoord - vec2(0.5));
-    float alpha = (1.0 - smoothstep(0.28, 0.5, distanceToCenter)) * uOpacity;
+    float alpha = (1.0 - smoothstep(0.4, 0.5, distanceToCenter)) * vOpacity;
     if (alpha < 0.025) discard;
     gl_FragColor = vec4(vColor, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
 `;
-
-function surfaceMaterial(visibility) {
-  const material = new THREE.MeshPhysicalMaterial({
-    vertexColors: true, roughness: .3, metalness: .22,
-    clearcoat: .25, clearcoatRoughness: .28, envMapIntensity: .18,
-    side: THREE.DoubleSide,
-  });
-  material.onBeforeCompile = shader => {
-    shader.uniforms.uSurfaceVisibility = visibility;
-    shader.fragmentShader = 'uniform float uSurfaceVisibility;\n' + shader.fragmentShader;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `
-      float pixelNoise = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898,78.233))) * 43758.5453);
-      if (pixelNoise > uSurfaceVisibility) discard;
-      #include <dithering_fragment>
-    `);
-  };
-  material.customProgramCacheKey = () => 'molecular-surface-dither-v1';
-  return material;
-}
-
-function makeEnvironment(renderer) {
-  const room = new RoomEnvironment();
-  const generator = new THREE.PMREMGenerator(renderer);
-  try { return generator.fromScene(room, .04); }
-  finally { room.dispose(); generator.dispose(); }
-}
 
 export function createMolecularRenderer(canvas, timeline, onReady = () => {}, configuration = {}) {
   let options = settings(configuration);
@@ -90,41 +66,21 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
   catch { return null; }
   if (!context || typeof context.getParameter !== 'function' || typeof context.createShader !== 'function') return null;
 
-  let renderer, models, environmentMap, pointsGeometry, pointMaterial;
-  const materials = [], visibility = [{ value: 1 }, { value: 0 }];
+  let renderer, models, pointsGeometry, pointMaterial;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true, alpha: false });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = .88;
-    environmentMap = makeEnvironment(renderer);
+    renderer.toneMapping = THREE.NoToneMapping;
     models = createMolecules({ samples: 10000 });
   } catch {
-    environmentMap?.dispose();
     renderer?.dispose();
     return null;
   }
 
   try {
   const scene = new THREE.Scene();
-  scene.environment = environmentMap.texture;
   const body = new THREE.Group();
   scene.add(body);
-  const ambient = new THREE.HemisphereLight(0xffffff, 0xaebddf, .55);
-  const key = new THREE.DirectionalLight(0xffffff, 1.6);
-  key.position.set(3.5, 5.5, 6);
-  const fill = new THREE.DirectionalLight(0xc3eaff, .55);
-  fill.position.set(-4, .5, 3);
-  const rim = new THREE.DirectionalLight(0xbfc7ff, 1.1);
-  rim.position.set(2, 4, -4);
-  scene.add(ambient, key, fill, rim);
-  const meshes = models.map((model, i) => {
-    const material = surfaceMaterial(visibility[i]); materials.push(material);
-    const mesh = new THREE.Mesh(model.geometry, material);
-    body.add(mesh);
-    return mesh;
-  });
-
   const count = Math.min(models[0].positions.length, models[1].positions.length) / 3;
   // The geometry builder deterministically shuffles samples so the smaller
   // mobile prefix covers all ribbons, sheets and connecting loops.
@@ -144,13 +100,13 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
   pointsGeometry.setAttribute('scatter', new THREE.BufferAttribute(scatter, 3));
   const uniforms = {
     uMix: { value: 0 }, uScaleFrom: { value: 1 }, uScaleTo: { value: 1 },
-    uPointSize: { value: 2.4 }, uPixelRatio: { value: 1 }, uOpacity: { value: 0 },
+    uPointSize: { value: 1.9 }, uPixelRatio: { value: 1 }, uDark: { value: 0 },
     uPointer: { value: new THREE.Vector2() }, uPrevious: { value: new THREE.Vector2() },
     uVelocity: { value: new THREE.Vector2() }, uAspect: { value: 1 }, uBrush: { value: 0 },
   };
   pointMaterial = new THREE.ShaderMaterial({
     uniforms, vertexShader: pointVertex, fragmentShader: pointFragment,
-    vertexColors: true, transparent: true, depthWrite: false, depthTest: true,
+    vertexColors: true, transparent: true, depthWrite: true, depthTest: true,
   });
   const particles = new THREE.Points(pointsGeometry, pointMaterial);
   particles.frustumCulled = false;
@@ -162,7 +118,7 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
   let width = 0, height = 0, ratio = 1, ready = false, disposed = false, contextLost = false;
   let themeDirty = true, fittingDirty = true, dark = false, tiltX = 0, tiltY = 0;
   const scales = [1, 1];
-  const stats = { frames: 0, points: count, maxOffset: 0, time: 0, scene: '', phase: 'solid', renderer: 'webgl' };
+  const stats = { frames: 0, points: count, maxOffset: 0, time: 0, scene: '', phase: 'particles', renderer: 'webgl' };
   function refreshTheme() {
     if (!themeDirty) return;
     themeDirty = false;
@@ -170,23 +126,11 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
     const background = new THREE.Color(/^#[\da-f]{6}$/i.test(ground) ? ground : '#fafbfe');
     dark = background.r + background.g + background.b < .8;
     renderer.setClearColor(background, 1);
-    renderer.toneMappingExposure = dark ? 1.05 : .88;
-    ambient.intensity = dark ? .9 : .55;
+    uniforms.uDark.value = dark ? 1 : 0;
   }
   const onLost = event => { event.preventDefault(); contextLost = true; canvas.dataset.ready = 'false'; };
   const onRestored = () => {
     contextLost = false; themeDirty = fittingDirty = true;
-    // Render targets retain their JS object across context loss, while their
-    // GPU pixels are lost. Recreate the local light probe before the next frame.
-    const previous = environmentMap;
-    try {
-      environmentMap = makeEnvironment(renderer);
-      scene.environment = environmentMap.texture;
-    } catch {
-      environmentMap = null;
-      scene.environment = null;
-    }
-    previous?.dispose();
   };
   canvas.addEventListener('webglcontextlost', onLost);
   canvas.addEventListener('webglcontextrestored', onRestored);
@@ -214,19 +158,16 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
       if (fittingDirty) {
         for (let i = 0; i < models.length; i++) {
           scales[i] = fitMolecule(models[i].bounds, w, h, options, models[i].geometry.attributes.position.array);
-          meshes[i].scale.setScalar(scales[i]);
         }
         uniforms.uScaleFrom.value = scales[0]; uniforms.uScaleTo.value = scales[1];
         fittingDirty = false;
       }
       refreshTheme();
+      uniforms.uPointSize.value = (w < 480 ? 1.6 : 1.9) + (dark ? .2 : 0);
       const frame = timeline.at(time, selected, scenePosition), mix = clamp(frame.mix, 0, 1);
-      const fromVisible = 1 - smooth(0, .14, mix), toVisible = smooth(.86, 1, mix);
-      visibility[0].value = fromVisible; visibility[1].value = toVisible;
-      meshes[0].visible = fromVisible > .001; meshes[1].visible = toVisible > .001;
-      uniforms.uOpacity.value = smooth(0, .1, mix) * (1 - smooth(.9, 1, mix));
+      // The same point cloud remains visible at both endpoints and throughout
+      // morphs, including paused and reduced-motion frames. No surface meshes.
       uniforms.uMix.value = mix;
-      particles.visible = uniforms.uOpacity.value > .001;
       const interaction = !still && pointer.active && options.brush > 0;
       const px = (pointer.x / w * 2 - 1), py = 1 - pointer.y / h * 2;
       const blend = still ? 1 : 1 - Math.exp(-Math.min(.08, Math.max(0, delta)) * 7);
@@ -240,10 +181,10 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
       uniforms.uVelocity.value.set(clamp(pointer.vx / 1600, -1, 1), clamp(-pointer.vy / 1600, -1, 1));
       renderer.render(scene, options.projection === 'orthographic' ? orthographic : perspective);
       canvas.dataset.sculpture = mix < .5 ? models[0].id : models[1].id;
-      canvas.dataset.phase = particles.visible ? 'particles' : 'solid';
+      canvas.dataset.phase = 'particles';
       canvas.dataset.ready = 'true';
       Object.assign(stats, { frames: stats.frames + 1, time, scene: canvas.dataset.sculpture,
-        phase: canvas.dataset.phase, mix, points: particles.visible ? pointsGeometry.drawRange.count : 0,
+        phase: canvas.dataset.phase, mix, points: pointsGeometry.drawRange.count,
         drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
       });
       if (!ready) { ready = true; onReady(); }
@@ -255,8 +196,7 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
       canvas.removeEventListener('webglcontextlost', onLost);
       canvas.removeEventListener('webglcontextrestored', onRestored);
       for (const model of models) model.geometry.dispose();
-      for (const material of materials) material.dispose();
-      pointsGeometry.dispose(); pointMaterial.dispose(); environmentMap?.dispose();
+      pointsGeometry.dispose(); pointMaterial.dispose();
       // React can mount a fresh owner on the same canvas during a hot update.
       // Dispose GPU resources while leaving that reusable context healthy.
       renderer.dispose();
@@ -267,8 +207,7 @@ export function createMolecularRenderer(canvas, timeline, onReady = () => {}, co
   };
   } catch {
     for (const model of models ?? []) model.geometry.dispose();
-    for (const material of materials) material.dispose();
-    pointsGeometry?.dispose(); pointMaterial?.dispose(); environmentMap?.dispose();
+    pointsGeometry?.dispose(); pointMaterial?.dispose();
     renderer?.dispose();
     return null;
   }
