@@ -32,9 +32,12 @@ export default function ReferenceGenomes() {
       <label><span>数据来源</span><select value={source} onChange={e=>{setSource(e.target.value);setPage(0);}}><option value="all">全部来源</option>{[...new Set(catalog.entries.map(e=>e.provider))].map(item=><option key={item}>{item}</option>)}</select></label>
     </div>
     <div className="genome-summary"><span role="status">找到 {results.length} 个参考版本</span><button onClick={reset} disabled={!query&&category==='all'&&source==='all'}>重置筛选</button></div>
-    <div className="genome-table-wrap"><table className="genome-table"><caption className="sr-only">参考基因组下载目录</caption><thead><tr><th scope="col">物种</th><th scope="col">组装与注释版本</th><th scope="col">下载文件</th></tr></thead><tbody>{visible.map(entry=><tr key={entry.id}>
-      <td><strong>{entry.species}</strong><span className="genome-latin">{entry.scientificName}</span><span className="genome-secondary">{entry.englishName}</span></td>
-      <td><strong className="genome-assembly">{entry.assembly}</strong><span className="genome-secondary">{[entry.release, entry.accession].filter(Boolean).join(' · ')}</span><a className="genome-source" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">{entry.provider}<ArrowUpRight size={12}/></a>{entry.note&&<span className="genome-note">{entry.note}</span>}</td>
+    <div className="genome-table-wrap"><table className="genome-table"><caption className="sr-only">参考基因组下载目录</caption><thead><tr><th scope="col">物种大类</th><th scope="col">物种</th><th scope="col">物种英文名</th><th scope="col">物种拉丁名</th><th scope="col">参考基因组名称</th><th scope="col">下载链接</th></tr></thead><tbody>{visible.map(entry=><tr key={entry.id}>
+      <td>{entry.category}</td>
+      <td><strong>{entry.species}</strong></td>
+      <td>{entry.englishName}</td>
+      <td><span className="genome-latin">{entry.scientificName}</span></td>
+      <td><strong className="genome-assembly">{entry.name}</strong><a className="genome-source" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">{entry.provider}<ArrowUpRight size={12}/></a>{entry.note&&<span className="genome-note">{entry.note}</span>}</td>
       <td><div className="genome-downloads">{entry.downloads.map(file=><a key={file.url} href={file.url} target="_blank" rel="noopener noreferrer" aria-label={`${entry.species} ${entry.assembly} ${entry.release} ${file.label}`}><Download size={14}/>{file.label}</a>)}</div></td>
     </tr>)}</tbody></table></div>
     {!results.length&&<div className="genome-empty"><h2>没有匹配的参考基因组</h2><p>试试中文名、拉丁名或更短的版本名称。</p><button className="button" onClick={reset}>显示全部版本</button></div>}
