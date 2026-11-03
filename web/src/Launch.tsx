@@ -47,8 +47,7 @@ export default function Launch() {
   return <div className="launch" data-theme={theme}>
     <header className="launch-header">
       <a href="/" className="launch-brand" aria-label="BioInfoBuddy 首页"><Dna size={27} strokeWidth={1.5}/><span>BioinfoBuddy<span className="launch-brand-dot">.</span></span></a>
-      <nav aria-label="网站导航"><a href="/?view=skills">技能商店</a><a href="/?view=omics">案例与图表</a><a href="/?view=tutorial">使用指南</a></nav>
-      <div className="launch-header-actions"><button onClick={()=>setTheme(theme==='light'?'dark':'light')} aria-label={theme==='light'?'切换深色':'切换浅色'}>{theme==='light'?<Moon size={18}/>:<Sun size={18}/>}</button><a href="/?view=chat">进入工作台<ArrowUpRight size={15}/></a></div>
+      <div className="launch-header-actions"><button onClick={()=>setTheme(theme==='light'?'dark':'light')} aria-label={theme==='light'?'切换深色':'切换浅色'}>{theme==='light'?<Moon size={18}/>:<Sun size={18}/>}</button></div>
     </header>
     <main>
       <section className="launch-hero" aria-labelledby="launch-title">
@@ -56,7 +55,6 @@ export default function Launch() {
           <h1 id="launch-title">让数据，<br/>显现生命的<span className="launch-title-end">线索<span className="launch-title-dot">。</span></span></h1>
           <p className="launch-intro">从一个问题，到一份清晰的结果。<br/>与 AI 一起整理实验数据、探索分析技能，<br className="launch-desktop-break"/>让科研中的下一步，更容易开始。</p>
           <div className="launch-cta"><a href="/?view=chat" className="launch-primary">开始探索<ArrowRight size={19}/></a></div>
-          <p className="launch-small-note">在浏览器中开始 · 使用自己的模型 API</p>
         </div>
         <figure className="launch-sculpture">
           <div className="launch-scene-label"><span>{scene==='double-helix'?'01 / DNA DOUBLE HELIX':'02 / PROTEIN FOLD'}</span><span>{scene==='double-helix'?'DNA 双螺旋':'蛋白质折叠'}</span></div>
