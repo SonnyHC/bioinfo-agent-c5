@@ -271,14 +271,14 @@ export function createRenderer(
             const force = Math.pow(1 - distance / radius, 2) * options.brush
             fx =
               force *
-              (pointer.vx * 0.16 +
-                dx * 0.25 +
-                scatter[i * 2] * (35 + speed * 0.06))
+              (pointer.vx * 0.16 -
+                dy * 0.12 +
+                scatter[i * 2] * (8 + speed * 0.015))
             fy =
               force *
               (pointer.vy * 0.07 +
-                dy * 0.35 +
-                scatter[i * 2 + 1] * (30 + speed * 0.09))
+                dx * 0.12 +
+                scatter[i * 2 + 1] * (8 + speed * 0.015))
           }
         }
         // Closed-form critical damping: return time does not depend on fps.

@@ -36,8 +36,9 @@ const pointVertex = `
     float distanceToBrush = length(difference);
     float edgeRoom = 1.0 - smoothstep(0.72, 0.96, max(abs(q.x / uAspect), abs(q.y)));
     float influence = pow(max(0.0, 1.0 - distanceToBrush / (0.38 * 1.5)), 2.0) * uBrush * edgeRoom;
-    vec2 outward = difference / max(distanceToBrush, 0.025);
-    mvPosition.xy += influence * (outward * (0.13 * 1.5) + uVelocity * 0.22);
+    // A tangential brush keeps particles around the pointer instead of opening a hole.
+    vec2 swirl = vec2(-difference.y, difference.x);
+    mvPosition.xy += influence * (swirl * 0.16 + uVelocity * 0.22);
     gl_Position = projectionMatrix * mvPosition;
     float depth = 1.0 - smoothstep(6.0, 10.0, -mvPosition.z);
     gl_PointSize = uPointSize * uPixelRatio * (0.85 + 0.3 * (scatter.z * 0.5 + 0.5)) * clamp(8.0 / -mvPosition.z, 0.8, 1.6);
