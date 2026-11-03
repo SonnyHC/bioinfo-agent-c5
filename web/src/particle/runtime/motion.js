@@ -24,6 +24,7 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
   const resetClock = () => {
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null; last = 0; target.active = false;
+    if (reduced.matches) timeline.snap?.(time);
     announce(); refresh();
   };
   function render(now) {
@@ -38,12 +39,12 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
     const dt = elapsed / 1000;
     if (animate) time += dt;
     pointer.previousX = pointer.x; pointer.previousY = pointer.y;
-    pointer.x += (target.x - pointer.x) * (1 - Math.exp(-elapsed / 75));
-    pointer.y += (target.y - pointer.y) * (1 - Math.exp(-elapsed / 75));
+    pointer.x += (target.x - pointer.x) * (1 - Math.exp(-elapsed / 45));
+    pointer.y += (target.y - pointer.y) * (1 - Math.exp(-elapsed / 45));
     const vx = Math.max(-1600, Math.min(1600, (pointer.x - pointer.previousX) / Math.max(dt, .001)));
     const vy = Math.max(-1600, Math.min(1600, (pointer.y - pointer.previousY) / Math.max(dt, .001)));
-    pointer.vx += (vx - pointer.vx) * (1 - Math.exp(-elapsed / 110));
-    pointer.vy += (vy - pointer.vy) * (1 - Math.exp(-elapsed / 110));
+    pointer.vx += (vx - pointer.vx) * (1 - Math.exp(-elapsed / 75));
+    pointer.vy += (vy - pointer.vy) * (1 - Math.exp(-elapsed / 75));
     pointer.active = target.active && animate;
     const chapter = reduced.matches && position !== null ? Math.round(position) : position;
     renderer.draw(time, pointer, dt, !animate, selected, chapter);
@@ -87,6 +88,11 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
   reduced.addEventListener('change', resetClock);
   announce(); schedule();
   return {
+    next() {
+      if (disposed || !timeline.next) return;
+      timeline.next(time, paused || reduced.matches);
+      selected = position = null; dirty = true; schedule();
+    },
     select(index) { selected = index; position = null; time = 0; resetClock(); },
     seek(value) {
       position = Math.max(0, Math.min(timeline.scenes.length - 1, Number.isFinite(value) ? value : 0));
