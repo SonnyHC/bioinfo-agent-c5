@@ -1,0 +1,39 @@
+name: Validate environment launcher
+on:
+  push:
+    paths:
+      - 'native/environment-launcher/**'
+      - 'web/src/environment-launcher.ts'
+      - 'web/public/resources/launcher/**'
+      - 'tests/environment-launcher.test.ts'
+      - '.github/workflows/environment-launcher.yml'
+  pull_request:
+    paths:
+      - 'native/environment-launcher/**'
+      - 'web/src/environment-launcher.ts'
+      - 'web/public/resources/launcher/**'
+      - 'tests/environment-launcher.test.ts'
+      - '.github/workflows/environment-launcher.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: python native/environment-launcher/windows/build.py
+      - name: Windows PowerShell 5.1
+        shell: powershell
+        run: ./native/environment-launcher/windows/tests.ps1
+      - name: PowerShell 7
+        shell: pwsh
+        run: ./native/environment-launcher/windows/tests.ps1
+      - run: npm run test:launcher

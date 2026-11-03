@@ -24,7 +24,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "dev:legacy": "tsx watch src/server.ts",
     "build:legacy": "tsc -p tsconfig.json",
-    "test:cloud": "node --import tsx --test tests/cloud.test.ts tests/model-api.test.ts tests/reference-genomes.test.ts tests/skills.test.ts tests/omics.test.ts tests/v1-examples.test.ts tests/guide-markdown.test.ts tests/tutorial-content.test.ts"
+    "test:cloud": "node --import tsx --test tests/cloud.test.ts tests/model-api.test.ts tests/reference-genomes.test.ts tests/skills.test.ts tests/omics.test.ts tests/v1-examples.test.ts tests/guide-markdown.test.ts tests/tutorial-content.test.ts",
+    "test:launcher": "node --import tsx --test tests/environment-launcher.test.ts",
+    "build:launcher:macos": "python3 native/environment-launcher/macos/build.py",
+    "build:launcher:windows": "python3 native/environment-launcher/windows/build.py"
   },
   "dependencies": {
     "archiver": "7.0.1",
