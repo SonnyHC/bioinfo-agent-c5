@@ -20,6 +20,7 @@
     "test:python": "node scripts/test-python.mjs",
     "test:plugin": "node --test packages/dsh-plugin-bioinfo/test/*.test.mjs",
     "test:harness": "node packages/dsh-plugin-bioinfo/test/host-smoke.mjs",
+    "test:particles": "node --test tests/particle.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "dev:legacy": "tsx watch src/server.ts",
     "build:legacy": "tsc -p tsconfig.json",

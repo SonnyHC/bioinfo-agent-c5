@@ -83,7 +83,7 @@ export default function Chat() {
     if (next.view === 'chat' && next.request.dataset) void selectForChat(next.request.dataset, false);
     void refreshData();
   }
-  function navigate(next:MainView) { showRoute(next === 'chat' ? '/' : `/?view=${next}`); }
+  function navigate(next:MainView) { showRoute(`/?view=${next}`); }
   async function selectForChat(id: string, push = true) {
     try {
       const selected = await api<ChatDataset>(`/datasets/${encodeURIComponent(id)}`);
@@ -211,7 +211,7 @@ export default function Chat() {
   }
 
   const navigation = <>
-    <a href="/" className="chat-brand" onClick={event=>{event.preventDefault();navigate('chat');}}><Dna size={24}/><strong>bioinfobuddy</strong></a>
+    <a href="/" className="chat-brand" aria-label="返回 BioInfoBuddy 启动页"><Dna size={24}/><strong>bioinfobuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
       {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'omics',icon:Images},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}

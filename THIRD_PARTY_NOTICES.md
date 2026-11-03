@@ -1,5 +1,12 @@
 # Third-party references and dependencies
 
+## Particle Sculpture
+
+- Source: https://github.com/LIghtJUNction/particle-sculpture-skill
+- Copyright (C) 2026 LIghtJUNction; AGPL-3.0-or-later. Runtime derives from TokenNotIncluded/api.lmm.best revision `8da4f3994299b7120c44b3fa579db35449a42188`.
+- The unmodified geometry, renderer, motion and timeline modules are retained in `web/src/particle/runtime/`. Original headers, license and attribution are retained; the complete license and notice are served at `/particle/LICENSE` and `/particle/NOTICE`.
+- BioInfoBuddy adds a stylized double-helix scene in `web/src/particle/scene.js`. This is a procedural illustration, not measured molecular geometry. The adapted scene retains the AGPL identifier.
+
 ## DeepSeek Harness
 
 - Source: https://github.com/deepseek-ai/deepseek-harness
