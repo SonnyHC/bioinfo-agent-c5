@@ -70,7 +70,7 @@ export default function Chat() {
   const abort = useRef<AbortController | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const end = useRef<HTMLDivElement>(null);
+  const messageScroll = useRef<HTMLDivElement>(null);
   const started = useRef(false);
 
   function showRoute(path: string, push = true) {
@@ -139,7 +139,14 @@ export default function Chat() {
     if (settings && !dialog.current?.open) dialog.current?.showModal();
     if (!settings && dialog.current?.open) dialog.current.close();
   }, [settings]);
-  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [conversation.messages.length, progress]);
+  useEffect(() => {
+    const scroll = messageScroll.current;
+    if (view !== 'chat' || !scroll) return;
+    scroll.scrollTo({
+      top: conversation.messages.length ? scroll.scrollHeight : 0,
+      behavior: conversation.messages.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant',
+    });
+  }, [conversation.id, conversation.messages.length, progress, view]);
 
   async function persist(next: Conversation) {
     setConversation({ ...next });
@@ -214,14 +221,13 @@ export default function Chat() {
     <aside className="chat-rail" aria-label="主侧边栏">{navigation}</aside>
     <dialog ref={mobileNavigation} className="chat-navigation-dialog" aria-label="导航菜单"><button className="icon-button chat-menu-close" aria-label="关闭导航菜单" onClick={()=>mobileNavigation.current?.close()}><X size={20}/></button>{navigation}</dialog>
     <main className="chat-main">
-      <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'?(conversation.messages.length?conversation.title:'生信分析'):viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
+      <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'&&conversation.messages.length?conversation.title:viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
       <section className="chat-conversation" hidden={view!=='chat'} aria-label="AI 对话">
-      <div className="chat-scroll">
+      <div ref={messageScroll} className={`chat-scroll${conversation.messages.length ? '' : ' chat-scroll-empty'}`}>
         {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => setExamplePicker(true)}><Database size={17}/>选择附件样例</button></div><div className="chat-examples"><span>可以这样问</span>{examplePrompts.map(prompt=><button key={prompt} disabled={busy||loading} onClick={()=>setInput(prompt)}>{prompt}</button>)}</div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
           {message.role === 'assistant' && <Dna className="chat-avatar" size={22}/>}
           <div>{message.content && <MessageText text={message.content} onOpen={showRoute}/>}{message.tool_calls?.map(call => { const event = conversation.events.find(item => item.id === call.id); return <div className="tool-step" key={call.id}>{event?.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event?.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}<span>{toolLabels[call.function.name] || call.function.name}{event?.detail && ` · ${event.detail}`}</span>{event?.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}</div>; })}</div>
         </div>)}</div>}
-        <div ref={end}/>
       </div>
       <div className="chat-compose-area">
         {!apiKey && <div className="chat-connection"><span>尚未配置模型 API，对话功能暂不可用；案例和其他页面不受影响。</span><button className="text-link" onClick={openSettings}>配置模型 API</button></div>}
