@@ -1,7 +1,7 @@
 export type AnalysisView = 'analysis' | 'history';
-export type MainView = 'chat' | 'tutorial' | 'genomes' | 'skills' | 'omics' | AnalysisView;
+export type MainView = 'chat' | 'tutorial' | 'genomes' | 'skills' | 'omics' | 'environments' | AnalysisView;
 export interface AnalysisRequest { plan?: string; run?: string; dataset?: string; case?: 'single-cell'|'spatial' }
-export const viewLabels: Record<MainView, string> = {chat:'AI 对话',tutorial:'使用教程',genomes:'参考基因组',skills:'数据分析技能',omics:'案例与图表',analysis:'案例与图表',history:'运行记录'};
+export const viewLabels: Record<MainView, string> = {chat:'AI 对话',tutorial:'使用教程',genomes:'参考基因组',skills:'数据分析技能',omics:'案例与图表',environments:'环境配置',analysis:'案例与图表',history:'运行记录'};
 const isView = (value: string | null): value is MainView => value !== null && Object.hasOwn(viewLabels, value);
 
 // Only known, same-site app destinations can become clickable model/tool links.

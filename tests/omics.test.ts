@@ -81,8 +81,9 @@ test('resources route and guidance skills do not create analysis or execution re
   assert.equal(safeAppLink('/?view=omics'), '/?view=omics');
   assert.deepEqual(appRoute('/?view=omics'), {view:'omics',request:{}});
   assert.equal(safeAppLink('/?view=omics&url=https://example.com'), undefined);
-  const result = await executeTool('bio_open_omics_resources', {}, new AbortController().signal) as {workbenchUrl:string;note:string};
+  const result = await executeTool('bio_open_omics_resources', {}, new AbortController().signal) as {workbenchUrl:string;environmentUrl:string;note:string};
   assert.equal(result.workbenchUrl,'/?view=omics');
+  assert.equal(result.environmentUrl,'/?view=environments');
   assert.match(result.note,/不执行/);
   const guidance = skillCatalog.filter(skill => skill.category.endsWith('指导'));
   assert.equal(guidance.length,5);

@@ -1,0 +1,82 @@
+[
+  {
+    "id": "single-cell-windows",
+    "title": "单细胞 R 环境",
+    "runtime": "R",
+    "platform": "Windows x86-64",
+    "url": "/resources/v1/environments/single-cell-windows.zip",
+    "bytes": 2264,
+    "sha256": "0ca7fe78cac52cf7ba43286387eb206f51af3876b0d762900df0f24ebb8584da",
+    "files": [
+      {
+        "name": "environment.yml",
+        "source": "V1.0/单细胞/r环境/win/environment.yml",
+        "bytes": 444,
+        "sha256": "03a730906ed215e2a2e706a659a377773540be5c0936aa29fcb302774bed9251"
+      },
+      {
+        "name": "environment-win-64.lock.txt",
+        "source": "V1.0/单细胞/r环境/win/environment-win-64.lock.txt",
+        "bytes": 5287,
+        "sha256": "4371fe4482141999fd57c34fd5ecf65e12882e68b4a1ded4878cce87dea761d7"
+      }
+    ]
+  },
+  {
+    "id": "single-cell-macos",
+    "title": "单细胞 R 环境",
+    "runtime": "R",
+    "platform": "macOS · Apple Silicon",
+    "url": "/resources/v1/environments/single-cell-macos.zip",
+    "bytes": 2569,
+    "sha256": "b6c552fae77632da4e30150ed8c64a19f6b8d008980ed4a10808576744407445",
+    "files": [
+      {
+        "name": "sc-conda-packages.txt",
+        "source": "V1.0/单细胞/r环境/mac/sc-conda-packages.txt",
+        "bytes": 17788,
+        "sha256": "a1fc2722bcfc7dd23fb5eef4d11fccab3394f1974741cd44fd0b262e360cb7b5"
+      }
+    ]
+  },
+  {
+    "id": "spatial-windows",
+    "title": "空间转录组 Python 环境",
+    "runtime": "Python",
+    "platform": "Windows x86-64",
+    "url": "/resources/v1/environments/spatial-windows.zip",
+    "bytes": 1661,
+    "sha256": "62e201604086946982720f51561b8d6f27b08743914ba67a808e7e06572fc3e3",
+    "files": [
+      {
+        "name": "environment.yml",
+        "source": "V1.0/空间转录组/python环境/win/environment.yml",
+        "bytes": 261,
+        "sha256": "6b1b22265ff60a76156f52a47e5478b452b4a3fea82de9e0065a6c3eaa101f5a"
+      },
+      {
+        "name": "st_miniconda.txt",
+        "source": "V1.0/空间转录组/python环境/win/st_miniconda.txt",
+        "bytes": 2010,
+        "sha256": "cbdf05f2a0e61af7ffa1c1e176a19a75b58d5a5430f38019c7b5863aad8e290e"
+      }
+    ]
+  },
+  {
+    "id": "spatial-macos",
+    "title": "空间转录组 Python 环境",
+    "runtime": "Python",
+    "platform": "macOS · Apple Silicon",
+    "url": "/resources/v1/environments/spatial-macos.zip",
+    "bytes": 471,
+    "sha256": "f4f07a7b4f1540e54f74a7ae79de2aa9f3abb44b9762a5fe76617c9ac3691c20",
+    "files": [
+      {
+        "name": "st_miniconda.txt",
+        "source": "V1.0/空间转录组/python环境/mac/st_miniconda.txt",
+        "bytes": 819,
+        "sha256": "985737d318f6d09b659ef2897327ed4a064511ef40780118438f640df0874e68"
+      }
+    ]
+  }
+]

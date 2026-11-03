@@ -36,7 +36,7 @@ export const omicsCases = [
     facts: [['输入', '32,738 genes × 2,700 cells'], ['原附件记录', '质控后 2,638 cells · clusters 0–8'], ['执行环境', '外部 R / Seurat']],
     boundary: '一个来源样本，没有实验/对照标签。cluster 尚未人工注释；marker 汇总没有 P 值。下方图片均为附件已有结果。',
     command: 'Rscript "generate_four_plots.R" "./filtered_gene_bc_matrices/hg19" "./results"',
-    files: [['generate_four_plots.R', '四图脚本'], ['install.R', 'R 依赖安装脚本'], ['colors.R', '20 / 38 色配色'], ['supplied-marker-summary.csv', '附件 marker 汇总'], ['README.md', 'macOS / Windows 复现指南']],
+    files: [['generate_four_plots.R', '四图脚本'], ['colors.R', '20 / 38 色配色'], ['supplied-marker-summary.csv', '附件 marker 汇总'], ['README.md', '复现指南']],
     figures: [
       ['01_QC_violin.png', '01 · 质控分布', '输入对象中的基因数、总计数和线粒体比例。黑点与数字表示中位数；只有 All cells 一组。'],
       ['02_UMAP_clusters.png', '02 · UMAP 聚类', '颜色和编号是算法 cluster；98% 数据椭圆及小群包络只辅助显示，不是生物边界。'],
@@ -51,7 +51,7 @@ export const omicsCases = [
     facts: [['输入', 'H5 表达矩阵 + spatial/'], ['过滤参数', '5,000–35,000 counts · mt < 20%'], ['执行环境', '外部 Python 3.12 / Scanpy 1.12.1']],
     boundary: '分析单位是 spot，可能混合多个细胞。cluster marker 排名属于探索性比较。下方九图来自原附件，本次没有重新执行分析。',
     command: 'python "st_scanpy.py" --data-dir "./GSE194329_RAW/GBM1_spaceranger_out" --output-dir "./results"',
-    files: [['st_scanpy.py', '九图脚本'], ['st_scanpy.qmd', 'Quarto 阅读报告'], ['environment.yml', '独立 Conda 环境定义'], ['README.md', 'macOS / Windows 复现指南']],
+    files: [['st_scanpy.py', '九图脚本'], ['st_scanpy.qmd', 'Quarto 阅读报告'], ['README.md', '复现指南']],
     figures: [
       ['01_QC_histograms.png', '01 · 质控直方图', '检查 spot 总计数和检出基因数分布；部分面板只显示特定数值范围，并非另一份样本。'],
       ['02_UMAP_total_counts.png', '02 · UMAP 总计数', '在同一降维空间中观察总计数与结构的关系。颜色差异不等于细胞类型。'],

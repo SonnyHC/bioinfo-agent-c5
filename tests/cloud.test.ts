@@ -121,8 +121,9 @@ test('main navigation restores legacy plan/run links and preserves chat dataset 
   assert.deepEqual(appRoute('/?view=analysis'),{view:'omics',request:{}});
   assert.deepEqual(appRoute(`/workbench?run=${recordId}`),{view:'history',request:{run:recordId}});
   assert.deepEqual(appRoute(`/?view=analysis&plan=${recordId}`),{view:'omics',request:{plan:recordId}});
-  assert.deepEqual(appRoute('/?view=environments'),{view:'chat',request:{}});
-  for(const view of ['connection','environments']) assert.equal(safeAppLink('/?view='+view),undefined);
+  assert.deepEqual(appRoute('/?view=environments'),{view:'environments',request:{}});
+  assert.equal(safeAppLink('/?view=environments'),'/?view=environments');
+  assert.equal(safeAppLink('/?view=connection'),undefined);
   assert.deepEqual(appRoute('/?view=skills'),{view:'skills',request:{}});
   assert.equal(safeAppLink('/?view=tutorial'),'/?view=tutorial');
   assert.deepEqual(appRoute('/?view=tutorial'),{view:'tutorial',request:{}});

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowDownToLine, ArrowRight, ExternalLink, FileCode2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, FileCode2 } from 'lucide-react';
 import type { MainView } from './navigation';
 import manifest from './data/omics-manifest.json';
 import palettes from './data/omics-palettes.json';
@@ -25,11 +25,6 @@ export default function OmicsResources({onNavigate,initialTopic = 'single-cell',
       <section className="omics-reproduce" aria-label={`${example.label}下载与复现`}>
         <div className="omics-download-heading"><div><h3>复现包</h3><p>包含必需输入、适配代码和 macOS / Windows 指南；无需模型密钥。</p></div><a className="button primary" href={manifest.packages[example.id].url} download><ArrowDownToLine size={15}/>下载复现包 · {mb(manifest.packages[example.id].bytes)}</a></div>
         <div className="omics-file-links">{example.files.map(([name, label]) => <a key={name} href={`${base}${example.id}/${name}`} download><FileCode2 size={14}/>{label}<ArrowDownToLine size={12}/></a>)}</div>
-        <details className="omics-environment"><summary>查看环境配置与运行步骤</summary>
-          {example.id === 'single-cell' ? <><p>macOS / Windows 均先安装官方 R，在解压目录的 R 或 RStudio 中运行：</p><pre><code>source("install.R")</code></pre><p>脚本补齐 Seurat、ggplot2、Matrix、patchwork、ggdendro、viridisLite；随后在终端运行：</p></> : <><p>安装对应平台 Miniconda 后进入解压目录；Windows 使用 Miniconda Prompt，macOS 使用终端：</p><pre><code>{'conda env create -f environment.yml\nconda activate bioinfobuddy-st'}</code></pre><p>这是独立环境定义，不是完整锁文件；不会要求改写全局 Conda 配置。运行：</p></>}
-          <pre><code>{example.command}</code></pre><p>输出写入 results。配置文件和脚本已作适配，本次未完成 macOS / Windows 全流程分析重跑；以实际依赖安装结果和运行日志为准。完整平台说明、版本记录与排错见包内 README.md。</p>
-          <a href={`${base}${example.id}/README.md`} target="_blank" rel="noreferrer">打开完整环境指南 <ExternalLink size={12}/></a>
-        </details>
         <details className="omics-checksum"><summary>复现包 SHA-256</summary><code>{manifest.packages[example.id].sha256}</code></details>
       </section>
       <div className="omics-gallery-heading"><h3>示例结果 <span>{example.figures.length} 张</span></h3><p>点击图片查看原图，或单独下载 PNG。</p></div>

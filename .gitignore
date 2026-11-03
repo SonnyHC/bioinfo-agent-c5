@@ -15,6 +15,7 @@ test-results/
 *.exe
 *.zip
 !web/public/resources/v1/*-reproduction.zip
+!web/public/resources/v1/environments/*.zip
 *.fastq*
 *.h5ad
 *.bam

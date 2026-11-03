@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Terminal, Upload, X } from 'lucide-react';
 import { api, importDataset } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
 import { requestModel } from './model-api';
@@ -19,6 +19,7 @@ import './chat.css';
 const ReferenceGenomes = lazy(() => import('./ReferenceGenomes'));
 const SkillStore = lazy(() => import('./SkillStore'));
 const OmicsResources = lazy(() => import('./OmicsResources'));
+const Environments = lazy(() => import('./Environments'));
 
 interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[]; skillId?: string }
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
@@ -210,7 +211,7 @@ export default function Chat() {
     <a href="/" className="chat-brand" aria-label="返回 BioInfoBuddy 启动页"><Dna size={24}/><strong>BioinfoBuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'omics',icon:Database},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'omics',icon:Database},{id:'environments',icon:Terminal},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
@@ -243,6 +244,7 @@ export default function Chat() {
       </section>
       {view==='tutorial'&&<Tutorial/>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
+      {view==='environments'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入环境配置…</p>}><Environments/></Suspense>}
       {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
       {view==='omics'&&<section className="analysis-hub" aria-label="案例与图表">
         {initialRoute.request.plan&&<p className="retired-plot-note" role="status">表格绘图模块已移除，此旧方案不再提供确认或生成入口。已有结果仍可从运行记录查看。</p>}
