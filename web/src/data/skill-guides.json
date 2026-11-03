@@ -9,7 +9,7 @@
         "title": "在本网站从哪里开始",
         "paragraphs": [
           "打开“案例与图表”，选择“单细胞”或“空间转录组”，先阅读数据说明和示例图，再下载复现包。包内脚本在你自行准备的 R 或 Python 环境运行。",
-          "如需讨论参数，前往“数据分析技能”，添加“单细胞质控与聚类指导”，点击“在对话中使用”，检查草稿后发送。AI 可以解释步骤、协助修改代码；网页没有原始矩阵计算或环境安装按钮。"
+          "如需讨论参数，前往“数据分析技能”，添加“单细胞质控与聚类”，点击“在对话中使用”，检查草稿后发送。AI 可以解释步骤、协助修改代码；环境安装入口位于“环境配置”，分析代码在本机 R / Python 中运行。"
         ],
         "screenshot": "omics-cases.jpg",
         "caption": "历史界面截图，导航以当前网页为准。BioInfoBuddy 的组学案例入口：先看案例，再下载复现资料。"
@@ -86,11 +86,43 @@
     ]
   },
   {
-    "id": "annotation-review",
-    "title": "细胞注释注意事项与结果解读",
-    "summary": "结合多个标记、表达比例和组织背景核对候选标签，保留不确定性。",
-    "source": "02_细胞注释注意事项与结果解读.md",
+    "id": "cell-annotation",
+    "title": "细胞注释与结果复核",
+    "summary": "整理 marker 与参考预测证据，结合表达比例和组织背景复核候选标签。",
+    "source": "02_细胞注释注意事项与结果解读.md；04_细胞注释理论与实操指南.md",
     "sections": [
+      {
+        "title": "注释是一条证据链",
+        "paragraphs": [
+          "细胞注释根据表达特征、参考图谱与实验背景，给细胞或细胞群赋予候选身份。先分主要谱系，再考虑亚型或状态；记录标记特异性、覆盖度、矛盾证据和未解决的问题。",
+          "聚类是算法分组，注释是生物学解释，两者不一一对应。一个类型可分布在多个 cluster，同一个 cluster 也可能包含混合类型。未知群需要进一步验证，不能仅凭 marker 法就宣称发现新细胞类型。"
+        ]
+      },
+      {
+        "title": "两类策略怎样配合",
+        "table": {
+          "headers": [
+            "策略",
+            "优势",
+            "局限"
+          ],
+          "rows": [
+            [
+              "Marker-based",
+              "证据易解释，可结合组织背景逐项检查",
+              "受先验知识、标记特异性与表达稀疏性限制"
+            ],
+            [
+              "Reference-based，例如 SingleR",
+              "借助已注释参考得到可复核的预测",
+              "依赖参考质量、物种、组织与标签粒度，未知群可能被强制分配或应保留未确定"
+            ]
+          ]
+        },
+        "paragraphs": [
+          "两类结果可交叉验证。参考预测并非绝对客观真值，人工判断也不必然优于模型；分歧应成为复核对象。记录参考集名称、版本、预处理、评分及不确定标签。SingleR 可在外部 R 环境使用，本站没有自动注释执行器。"
+        ]
+      },
       {
         "title": "先分清这四张图说明什么",
         "table": {
@@ -157,191 +189,11 @@
       {
         "title": "在网页中开展复核",
         "paragraphs": [
-          "到“数据分析技能”添加“细胞注释结果复核”，在对话草稿中说明物种、组织、cluster、候选类型和已观察到的证据。对话当前不读取案例图片内容，若需要讨论图中的细节，应把观察或表格数值明确写出。",
+          "到“数据分析技能”添加“细胞注释与结果复核”，在对话草稿中说明物种、组织、cluster、候选类型和已观察到的证据。对话当前不读取案例图片内容，若需要讨论图中的细节，应把观察或表格数值明确写出。",
           "小型 CSV 结果表可以在“AI 对话”导入，仍受 2 MB 限制；原始 10x / H5AD / Visium 文件请在外部环境处理。不要为了适应上传限制，截取数据后仍声称是完整矩阵分析。"
         ],
         "screenshot": "omics-skills.jpg",
         "caption": "历史界面截图，导航以当前网页为准。技能详情说明输入、流程和能力范围；添加后由用户发送对话草稿。"
-      }
-    ],
-    "sources": [
-      {
-        "label": "Seurat FindMarkers 参数",
-        "url": "https://satijalab.org/seurat/reference/findmarkers"
-      },
-      {
-        "label": "SingleR 注释结果解释",
-        "url": "https://bioconductor.org/books/release/SingleRBook/"
-      },
-      {
-        "label": "Human Protein Atlas：CD4",
-        "url": "https://www.proteinatlas.org/ENSG00000010610-CD4"
-      },
-      {
-        "label": "PD-1 表达与功能状态的原始研究",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3723805/"
-      }
-    ]
-  },
-  {
-    "id": "differential-enrichment",
-    "title": "差异表达与功能富集分析",
-    "summary": "先明确比较单位与对照方向，再选择统计方法和富集背景。",
-    "source": "03_差异表达与功能富集分析.md",
-    "sections": [
-      {
-        "title": "先区分 marker 搜索与条件比较",
-        "paragraphs": [
-          "cluster 对其他细胞的 marker 搜索，主要回答哪些基因帮助描述当前分群。病例与对照的差异分析则需要明确实验单位、供者或样本重复、配对、批次及混杂因素。不能把同一供者的细胞全部当作独立生物重复。",
-          "PBMC 案例只有单一样本，没有病例/对照信息。空间脚本按 clusters 使用 t-test 排名 marker，这是探索性群间比较，不是具有独立样本重复的条件差异研究。网页提供方法指导与结果表绘图，不在线执行差异或富集分析。"
-        ]
-      },
-      {
-        "title": "检验方法取决于问题和模型假设",
-        "table": {
-          "headers": [
-            "方法",
-            "用途与注意事项"
-          ],
-          "rows": [
-            [
-              "Wilcoxon / Presto",
-              "基于秩的比较；不应普遍解释成仅检验中位数。Presto 提供快速 Wilcoxon / auROC 实现。"
-            ],
-            [
-              "ROC",
-              "评估基因区分分群的能力；Seurat 此模式不提供通常的差异检验 P 值。"
-            ],
-            [
-              "t-test",
-              "比较均值；检查独立性、分布与方差处理，不能仅凭细胞多就忽略样本依赖。"
-            ],
-            [
-              "negbinom / poisson",
-              "基于计数分布；需核对数据层、适用数据和离散假设。"
-            ],
-            [
-              "LR / MAST / bimod",
-              "各有不同模型结构与适用假设；Seurat LR 为以分群为响应的 logistic 回归比较，不能与所有似然比方法混为一谈。"
-            ],
-            [
-              "样本层面 pseudobulk / 混合模型",
-              "条件差异分析可考虑按样本与细胞类型聚合计数，或显式处理样本内依赖；仍需足够重复和合适设计。"
-            ]
-          ]
-        }
-      },
-      {
-        "title": "记录参数，不为了凑结果调整阈值",
-        "items": [
-          "min.pct：Seurat 按至少一个比较群达到最低检出比例进行候选过滤，不是任一群低于阈值就丢弃。",
-          "logfc.threshold：预筛效应大小的参数；具体数值、对数底数和过滤行为随函数、数据层及选项而定，以所用版本为准。",
-          "p_val 与 p_val_adj：记录检验和多重校正方法。Seurat FindMarkers 的 p_val_adj 使用 Bonferroni；不能直接叫作 BH-FDR。",
-          "max.cells.per.ident / 抽样：记录是否启用、每群上限和随机种子。抽样用于算力或特定设计，不会自动解决伪重复。",
-          "比较方向：明确 ident.1 与 ident.2，检查正负 logFC 的含义；同时报告效应大小、检出比例、样本数和不确定性。"
-        ],
-        "paragraphs": [
-          "不要只因为差异基因太多或太少就事后寻找“理想”阈值。可以做预先说明的敏感性分析，但要保留所有参数和筛选规则。"
-        ]
-      },
-      {
-        "title": "ORA 与 GSEA 的输入不同",
-        "table": {
-          "headers": [
-            "方法",
-            "输入",
-            "必须记录"
-          ],
-          "rows": [
-            [
-              "ORA / enricher",
-              "目标基因集合、可被检验的背景基因、基因集映射",
-              "物种、ID 类型、背景 universe、数据库版本和筛选规则"
-            ],
-            [
-              "GSEA",
-              "覆盖待检验基因的有名称、无重复且排序好的数值向量",
-              "排序统计量及方向、数据库版本、基因集大小与算法参数"
-            ]
-          ]
-        },
-        "paragraphs": [
-          "ORA 背景应对应实际有机会进入目标集合的基因，不能无条件用全基因组替代。GSEA 通常不先按显著性筛掉基因；选择能反映比较方向与证据的排序指标，并报告其定义。",
-          "GO、KEGG、Reactome、MSigDB 的基因集覆盖、标识体系与许可不同；按物种核实可用性。本站“参考基因组”目录不是富集数据库，也不代表内置了这些基因集。"
-        ]
-      },
-      {
-        "title": "富集参数与结果解读",
-        "paragraphs": [
-          "pvalueCutoff、pAdjustMethod、qvalueCutoff、minGSSize、maxGSSize 各有独立含义。q value 与校正后的 P 值相关但不是同一个字段；根据所用函数的实际过滤规则报告结果。",
-          "富集 DotPlot 的位置、大小和颜色要以实际图例为准：可能是 GeneRatio、Count、p.adjust 等。GSEA 应一起查看 NES、校正显著性和 leading-edge 基因；富集并不自动证明通路被激活或存在因果作用。",
-          "火山图需要说明 y 轴使用原始还是校正 P 值。热图需注明数值层与是否按行标准化，小提琴图需注明单位和样本依赖。当前网站没有火山图、GSEA 曲线或自动富集重算按钮。"
-        ]
-      },
-      {
-        "title": "把外部结果接回网页",
-        "paragraphs": [
-          "在外部环境完成分析并保存代码、版本和结果。可把符合格式与大小限制的结果表导入“AI 对话”，核对字段并讨论绘图方法。绘图代码和统计检验均需在外部环境执行。",
-          "在技能库添加“差异表达与富集方案指导”，让 AI 协助检查比较设计、字段、校正方法和报告措辞；没有实际结果时不能生成虚构 P 值或通路结论。"
-        ]
-      }
-    ],
-    "sources": [
-      {
-        "label": "Seurat FindMarkers",
-        "url": "https://satijalab.org/seurat/reference/findmarkers"
-      },
-      {
-        "label": "OSCA 多样本比较",
-        "url": "https://bioconductor.org/books/release/OSCA.multisample/multi-sample-comparisons.html"
-      },
-      {
-        "label": "clusterProfiler 官方手册",
-        "url": "https://yulab-smu.top/biomedical-knowledge-mining-book/"
-      },
-      {
-        "label": "Presto 官方项目",
-        "url": "https://github.com/immunogenomics/presto"
-      }
-    ]
-  },
-  {
-    "id": "annotation-practice",
-    "title": "细胞注释理论与实操指南",
-    "summary": "建立可追溯的候选标签表，把参考预测与人工证据放在一起检查。",
-    "source": "04_细胞注释理论与实操指南.md",
-    "sections": [
-      {
-        "title": "注释是一条证据链",
-        "paragraphs": [
-          "细胞注释根据表达特征、参考图谱与实验背景，给细胞或细胞群赋予候选身份。先分主要谱系，再考虑亚型或状态；记录标记特异性、覆盖度、矛盾证据和未解决的问题。",
-          "聚类是算法分组，注释是生物学解释，两者不一一对应。一个类型可分布在多个 cluster，同一个 cluster 也可能包含混合类型。未知群需要进一步验证，不能仅凭 marker 法就宣称发现新细胞类型。"
-        ]
-      },
-      {
-        "title": "两类策略怎样配合",
-        "table": {
-          "headers": [
-            "策略",
-            "优势",
-            "局限"
-          ],
-          "rows": [
-            [
-              "Marker-based",
-              "证据易解释，可结合组织背景逐项检查",
-              "受先验知识、标记特异性与表达稀疏性限制"
-            ],
-            [
-              "Reference-based，例如 SingleR",
-              "借助已注释参考得到可复核的预测",
-              "依赖参考质量、物种、组织与标签粒度，未知群可能被强制分配或应保留未确定"
-            ]
-          ]
-        },
-        "paragraphs": [
-          "两类结果可交叉验证。参考预测并非绝对客观真值，人工判断也不必然优于模型；分歧应成为复核对象。记录参考集名称、版本、预处理、评分及不确定标签。SingleR 可在外部 R 环境使用，本站没有自动注释执行器。"
-        ]
       },
       {
         "title": "跟着网页完成一次候选注释",
@@ -349,7 +201,7 @@
           "在“案例与图表 → 单细胞”阅读 PBMC 数据说明，依次查看 UMAP、DotPlot 与 FeaturePlot。图上按 marker 组合命名的标题仅供对照。",
           "下载单细胞复现包，在独立 R 环境运行脚本。检查实际输出 marker_summary.csv、分析说明和 sessionInfo.txt。",
           "对每个 cluster 整理多个候选标记、表达比例、平均表达及冲突标记。补充物种、组织和实验信息。",
-          "在“数据分析技能”添加“细胞注释证据整理”，点击“在对话中使用”，把候选信息写入草稿后发送。AI 只依据你提供的证据讨论。",
+          "在“数据分析技能”添加“细胞注释与结果复核”，点击“在对话中使用”，把候选信息写入草稿后发送。AI 只依据你提供的证据讨论。",
           "在自己的结果表中记录最终候选标签与证据等级，保留原 cluster 编号。重新聚类或更换参考后另存版本，避免覆盖原始判断。"
         ],
         "screenshot": "omics-skills.jpg",
@@ -403,12 +255,168 @@
     ],
     "sources": [
       {
-        "label": "SingleR 官方手册",
+        "label": "Seurat FindMarkers 参数",
+        "url": "https://satijalab.org/seurat/reference/findmarkers"
+      },
+      {
+        "label": "SingleR 注释结果解释",
         "url": "https://bioconductor.org/books/release/SingleRBook/"
+      },
+      {
+        "label": "Human Protein Atlas：CD4",
+        "url": "https://www.proteinatlas.org/ENSG00000010610-CD4"
+      },
+      {
+        "label": "PD-1 表达与功能状态的原始研究",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3723805/"
       },
       {
         "label": "Seurat PBMC 工作流",
         "url": "https://satijalab.org/seurat/articles/pbmc3k_tutorial.html"
+      }
+    ]
+  },
+  {
+    "id": "differential-expression",
+    "title": "差异表达分析",
+    "summary": "明确比较单位、对照方向和统计模型，核对效应大小与多重检验校正。",
+    "source": "03_差异表达与功能富集分析.md",
+    "sections": [
+      {
+        "title": "先区分 marker 搜索与条件比较",
+        "paragraphs": [
+          "cluster 对其他细胞的 marker 搜索，主要回答哪些基因帮助描述当前分群。病例与对照的差异分析则需要明确实验单位、供者或样本重复、配对、批次及混杂因素。不能把同一供者的细胞全部当作独立生物重复。",
+          "PBMC 案例只有单一样本，没有病例/对照信息。空间脚本按 clusters 使用 t-test 排名 marker，这是探索性群间比较，不是具有独立样本重复的条件差异研究。网页用于讨论方法与核对结果表，差异分析代码在外部环境执行。"
+        ]
+      },
+      {
+        "title": "检验方法取决于问题和模型假设",
+        "table": {
+          "headers": [
+            "方法",
+            "用途与注意事项"
+          ],
+          "rows": [
+            [
+              "Wilcoxon / Presto",
+              "基于秩的比较；不应普遍解释成仅检验中位数。Presto 提供快速 Wilcoxon / auROC 实现。"
+            ],
+            [
+              "ROC",
+              "评估基因区分分群的能力；Seurat 此模式不提供通常的差异检验 P 值。"
+            ],
+            [
+              "t-test",
+              "比较均值；检查独立性、分布与方差处理，不能仅凭细胞多就忽略样本依赖。"
+            ],
+            [
+              "negbinom / poisson",
+              "基于计数分布；需核对数据层、适用数据和离散假设。"
+            ],
+            [
+              "LR / MAST / bimod",
+              "各有不同模型结构与适用假设；Seurat LR 为以分群为响应的 logistic 回归比较，不能与所有似然比方法混为一谈。"
+            ],
+            [
+              "样本层面 pseudobulk / 混合模型",
+              "条件差异分析可考虑按样本与细胞类型聚合计数，或显式处理样本内依赖；仍需足够重复和合适设计。"
+            ]
+          ]
+        }
+      },
+      {
+        "title": "记录参数，不为了凑结果调整阈值",
+        "items": [
+          "min.pct：Seurat 按至少一个比较群达到最低检出比例进行候选过滤，不是任一群低于阈值就丢弃。",
+          "logfc.threshold：预筛效应大小的参数；具体数值、对数底数和过滤行为随函数、数据层及选项而定，以所用版本为准。",
+          "p_val 与 p_val_adj：记录检验和多重校正方法。Seurat FindMarkers 的 p_val_adj 使用 Bonferroni；不能直接叫作 BH-FDR。",
+          "max.cells.per.ident / 抽样：记录是否启用、每群上限和随机种子。抽样用于算力或特定设计，不会自动解决伪重复。",
+          "比较方向：明确 ident.1 与 ident.2，检查正负 logFC 的含义；同时报告效应大小、检出比例、样本数和不确定性。"
+        ],
+        "paragraphs": [
+          "不要只因为差异基因太多或太少就事后寻找“理想”阈值。可以做预先说明的敏感性分析，但要保留所有参数和筛选规则。"
+        ]
+      },
+      {
+        "title": "差异结果图与报告",
+        "paragraphs": [
+          "火山图需要说明 y 轴使用原始还是校正 P 值。热图需注明数值层与是否按行标准化，小提琴图需注明单位和样本依赖。绘图代码在外部 R / Python 环境执行。"
+        ]
+      },
+      {
+        "title": "把外部结果接回网页",
+        "paragraphs": [
+          "在外部环境完成分析并保存代码、版本和结果。可把符合格式与大小限制的结果表导入“AI 对话”，核对字段并讨论绘图方法。绘图代码和统计检验均需在外部环境执行。",
+          "在技能库添加“差异表达分析”，核对比较设计、效应方向、校正方法与结果字段。"
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "label": "Seurat FindMarkers",
+        "url": "https://satijalab.org/seurat/reference/findmarkers"
+      },
+      {
+        "label": "OSCA 多样本比较",
+        "url": "https://bioconductor.org/books/release/OSCA.multisample/multi-sample-comparisons.html"
+      },
+      {
+        "label": "Presto 官方项目",
+        "url": "https://github.com/immunogenomics/presto"
+      }
+    ]
+  },
+  {
+    "id": "functional-enrichment",
+    "title": "功能富集分析",
+    "summary": "按 ORA 或 GSEA 准备基因集合、背景或排序向量，核对数据库与通路结果。",
+    "source": "03_差异表达与功能富集分析.md",
+    "sections": [
+      {
+        "title": "ORA 与 GSEA 的输入不同",
+        "table": {
+          "headers": [
+            "方法",
+            "输入",
+            "必须记录"
+          ],
+          "rows": [
+            [
+              "ORA / enricher",
+              "目标基因集合、可被检验的背景基因、基因集映射",
+              "物种、ID 类型、背景 universe、数据库版本和筛选规则"
+            ],
+            [
+              "GSEA",
+              "覆盖待检验基因的有名称、无重复且排序好的数值向量",
+              "排序统计量及方向、数据库版本、基因集大小与算法参数"
+            ]
+          ]
+        },
+        "paragraphs": [
+          "ORA 背景应对应实际有机会进入目标集合的基因，不能无条件用全基因组替代。GSEA 通常不先按显著性筛掉基因；选择能反映比较方向与证据的排序指标，并报告其定义。",
+          "GO、KEGG、Reactome、MSigDB 的基因集覆盖、标识体系与许可不同；按物种核实可用性。本站“参考基因组”目录不是富集数据库，也不代表内置了这些基因集。"
+        ]
+      },
+      {
+        "title": "富集参数与结果解读",
+        "paragraphs": [
+          "pvalueCutoff、pAdjustMethod、qvalueCutoff、minGSSize、maxGSSize 各有独立含义。q value 与校正后的 P 值相关但不是同一个字段；根据所用函数的实际过滤规则报告结果。",
+          "富集 DotPlot 的位置、大小和颜色要以实际图例为准：可能是 GeneRatio、Count、p.adjust 等。GSEA 应一起查看 NES、校正显著性和 leading-edge 基因；富集并不自动证明通路被激活或存在因果作用。"
+        ]
+      },
+      {
+        "title": "把外部结果接回网页",
+        "paragraphs": [
+          "在外部环境完成分析并保存代码、版本和结果。可把符合格式与大小限制的结果表导入“AI 对话”，核对字段并讨论绘图方法。绘图代码和统计检验均需在外部环境执行。",
+          "在技能库添加“功能富集分析”，核对基因 ID、背景集合、排序统计量、数据库版本与结果字段。"
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "label": "clusterProfiler 官方手册",
+        "url": "https://yulab-smu.top/biomedical-knowledge-mining-book/"
       }
     ]
   }

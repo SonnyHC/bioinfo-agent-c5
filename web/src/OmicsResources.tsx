@@ -30,7 +30,7 @@ export default function OmicsResources({onNavigate,initialTopic = 'single-cell',
       <div className="omics-gallery-heading"><h3>示例结果 <span>{example.figures.length} 张</span></h3><p>点击图片查看原图，或单独下载 PNG。</p></div>
       <div className="omics-gallery">{example.figures.map(([filename, title, caption]) => <figure key={filename}><a className="omics-figure-link" href={`${base}${example.id}/figures/${filename}`} target="_blank" rel="noreferrer" aria-label={`${title}，查看原图`}><img loading="lazy" src={`${base}${example.id}/figures/${filename}`} alt={`${title}。${caption}`}/></a><figcaption><div><h4>{title}</h4><a href={`${base}${example.id}/figures/${filename}`} download aria-label={`下载${title}`}><ArrowDownToLine size={16}/></a></div><p>{caption}</p></figcaption></figure>)}</div>
       {example.id === 'single-cell' && <details className="omics-palettes"><summary>附带配色 · 20 色与 38 色</summary><p>用于外部 R 绘图。原文件中的 colors_36 实际含 38 色；适配版使用 colors_38，并保留兼容别名。</p>{palettes.map((palette, index) => <div className="omics-swatches" key={index} aria-label={`${palette.length} 色配色`}>{palette.map((color, i) => <span key={`${color}-${i}`} title={color} style={{backgroundColor: color}}><span className="sr-only">{color}</span></span>)}</div>)}<a download href={`${base}single-cell/colors.R`}>下载 colors.R <ArrowDownToLine size={14}/></a></details>}
-      <footer className="omics-case-footer"><p>{example.source}</p><div><button className="button" onClick={() => onNavigate('skills')}>选择 AI 指导技能<ArrowRight size={15}/></button></div></footer>
+      <footer className="omics-case-footer"><p>{example.source}</p><div><button className="button" onClick={() => onNavigate('skills')}>选择数据分析技能<ArrowRight size={15}/></button></div></footer>
     </article>}
   </div></div>;
 }

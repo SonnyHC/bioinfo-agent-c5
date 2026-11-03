@@ -28,7 +28,9 @@ function recover(previous: Conversation): Conversation {
   const messages = [...previous.messages];
   const incomplete = messages.findIndex((m, i) => m.tool_calls?.some(call => !messages.slice(i + 1).some(item => item.role === 'tool' && item.tool_call_id === call.id)));
   if (incomplete >= 0) messages.splice(incomplete);
-  return { ...previous, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
+  const selected = previous.skillId === 'cell-annotation-evidence' ? 'cell-annotation-review' : previous.skillId;
+  const skillId = skillCatalog.some(skill => skill.id === selected) ? selected : undefined;
+  return { ...previous, skillId, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
 }
 
 const examplePrompts = [

@@ -85,7 +85,7 @@ test('resources route and guidance skills do not create analysis or execution re
   assert.equal(result.workbenchUrl,'/?view=omics');
   assert.equal(result.environmentUrl,'/?view=environments');
   assert.match(result.note,/不执行/);
-  const guidance = skillCatalog.filter(skill => skill.category.endsWith('指导'));
+  const guidance = skillCatalog.filter(skill => ['单细胞', '空间组学'].includes(skill.category));
   assert.equal(guidance.length,5);
   for (const skill of guidance) {
     assert.match(skillMarkdown(skill),/外部/);
@@ -99,4 +99,28 @@ test('case deep links preserve the chosen V1 case and reject unknown values', ()
   assert.equal(safeAppLink('/?view=omics&case=single-cell'), '/?view=omics&case=single-cell');
   assert.equal(safeAppLink('/?view=omics&case=unknown'), undefined);
   assert.equal(safeAppLink('/?view=omics&case=spatial&case=single-cell'), undefined);
+});
+
+test('skill topics retain plotting tools, merge annotation evidence and separate differential expression from enrichment', () => {
+  const byId = (id: string) => {
+    const skill = skillCatalog.find(item => item.id === id);
+    assert(skill, `Missing skill ${id}`);
+    return skill;
+  };
+  assert.equal(skillCatalog.length, 10);
+  assert.deepEqual(['matrix-heatmap', 'distribution-explorer', 'result-review'].map(id => byId(id).name),
+    ['表达矩阵热图', '分布与关系探索', '结果复核与复现']);
+  for (const skill of skillCatalog) assert.doesNotMatch(skillMarkdown(skill) + skill.category + skill.starter, /指导/);
+  assert(!skillCatalog.some(item => ['cell-annotation-evidence', 'differential-enrichment-guide'].includes(item.id)));
+  const annotation = byId('cell-annotation-review');
+  assert.match(annotation.reading!, /注释是一条证据链/);
+  assert.match(annotation.reading!, /先分清这四张图说明什么/);
+  assert.match(annotation.reading!, /建议保存的注释表/);
+  const differential = byId('differential-expression');
+  const enrichment = byId('functional-enrichment');
+  assert.match(differential.reading!, /pseudobulk/);
+  assert.doesNotMatch(differential.reading!, /ORA|GSEA/);
+  assert.match(enrichment.reading!, /ORA/);
+  assert.match(enrichment.reading!, /GSEA/);
+  assert.doesNotMatch(enrichment.reading!, /Wilcoxon|Presto|pseudobulk/);
 });

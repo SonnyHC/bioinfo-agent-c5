@@ -1,28 +1,61 @@
-import { list, read, remove, save } from './storage';
+import { list, updateAll } from './storage';
 import { findSkill, skillCatalog, skillMarkdown } from './skill-catalog';
 
 export interface InstalledSkill { id: string; version: string; enabled: boolean; createdAt: string }
 export const SKILLS_CHANGED = 'bioinfobuddy-skills-changed';
 function notify() { if (typeof window !== 'undefined') window.dispatchEvent(new Event(SKILLS_CHANGED)); }
 
+function migrateSkills(values: InstalledSkill[]): InstalledSkill[] {
+  const records = new Map(values.map(value => [value.id, value]));
+  const evidence = records.get('cell-annotation-evidence');
+  const review = records.get('cell-annotation-review');
+  if (!review && evidence) {
+    records.set('cell-annotation-review', {...evidence, id: 'cell-annotation-review', version: '1.1.0'});
+  } else if (review?.version === '1.0.0') {
+    records.set(review.id, {...review, version: '1.1.0'});
+  }
+  records.delete('cell-annotation-evidence');
+
+  const combined = records.get('differential-enrichment-guide');
+  if (combined) {
+    for (const id of ['differential-expression', 'functional-enrichment']) {
+      if (!records.has(id)) records.set(id, {...combined, id, version: '1.0.0'});
+    }
+    records.delete(combined.id);
+  }
+  return [...records.values()];
+}
+
 export async function installedSkills(): Promise<InstalledSkill[]> {
-  return (await list<InstalledSkill>('skills')).filter(item => skillCatalog.some(skill => skill.id === item.id));
+  const stored = await list<InstalledSkill>('skills');
+  const needsMigration = stored.some(item => item.id === 'cell-annotation-evidence'
+    || item.id === 'differential-enrichment-guide' || item.id === 'cell-annotation-review' && item.version === '1.0.0');
+  const records = needsMigration ? await updateAll('skills', migrateSkills) : stored;
+  return records
+    .filter(item => skillCatalog.some(skill => skill.id === item.id))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 export async function addSkill(id: string): Promise<void> {
   const skill = findSkill(id);
-  const existing = (await installedSkills()).find(item => item.id === id);
-  await save('skills', {id, version: skill.version, enabled: true, createdAt: existing?.createdAt ?? new Date().toISOString()});
+  await updateAll<InstalledSkill>('skills', values => {
+    const migrated = migrateSkills(values);
+    const existing = migrated.find(item => item.id === id);
+    return [...migrated.filter(item => item.id !== id), {id, version: skill.version, enabled: true, createdAt: existing?.createdAt ?? new Date().toISOString()}];
+  });
   notify();
 }
 export async function setSkillEnabled(id: string, enabled: boolean): Promise<void> {
   findSkill(id);
-  const record = await read<InstalledSkill>('skills', id);
-  await save('skills', {...record, enabled});
+  await updateAll<InstalledSkill>('skills', values => {
+    const migrated = migrateSkills(values);
+    if (!migrated.some(item => item.id === id)) throw new Error('此浏览器中找不到这条记录。');
+    return migrated.map(item => item.id === id ? {...item, enabled} : item);
+  });
   notify();
 }
 export async function removeSkill(id: string): Promise<void> {
   findSkill(id);
-  await remove('skills', id);
+  await updateAll<InstalledSkill>('skills', values => migrateSkills(values).filter(item => item.id !== id));
   notify();
 }
 export async function loadSkill(id: unknown) {

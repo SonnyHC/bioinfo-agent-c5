@@ -36,7 +36,7 @@ export async function executeTool(name: string, args: Record<string,unknown>, si
       const data = await api<Dataset>(`/datasets/${id(args.datasetId)}`);
       return {...data,preview:data.preview.slice(0,10)};
     }
-    case 'bio_preview_plan': throw new Error('表格绘图模块已移除，不能创建或运行网页绘图方案。请检查真实数据并提供外部 R/Python 绘图指导。');
+    case 'bio_preview_plan': throw new Error('表格绘图模块已移除，不能创建或运行网页绘图方案。请检查真实数据并提供外部 R/Python 绘图代码。');
     case 'bio_list_runs': {
       const {runs} = await api<{runs:Run[]}>('/runs');
       const selected = args.planId ? runs.filter(run=>run.planId===id(args.planId)) : runs;

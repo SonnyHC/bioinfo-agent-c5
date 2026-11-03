@@ -52,3 +52,32 @@ export async function list<T extends { createdAt: string }>(store: Store): Promi
 export async function remove(store: Store, id: string): Promise<void> {
   await operation(store, 'readwrite', table => table.delete(id));
 }
+
+// Keep migrations and user edits in one transaction, including across tabs.
+// The callback is synchronous so IndexedDB keeps the readwrite transaction open.
+export async function updateAll<T extends { id: string }>(store: Store, update: (values: T[]) => T[]): Promise<T[]> {
+  const db = await database();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(store, 'readwrite');
+    const table = transaction.objectStore(store);
+    const request = table.getAll() as IDBRequest<T[]>;
+    let result: T[] = [];
+    let failure: unknown;
+    request.onsuccess = () => {
+      try {
+        const previous = new Map(request.result.map(value => [value.id, value]));
+        result = update(request.result);
+        const retained = new Set(result.map(value => value.id));
+        for (const value of result) table.put(value);
+        for (const id of previous.keys()) if (!retained.has(id)) table.delete(id);
+      } catch (error) {
+        failure = error;
+        transaction.abort();
+      }
+    };
+    transaction.oncomplete = () => resolve(result);
+    transaction.onabort = () => reject(failure ?? new Error(transaction.error?.name === 'QuotaExceededError'
+      ? '浏览器存储空间不足，请导出结果并清理不需要的网站数据。' : '本地保存失败，请检查浏览器存储设置。'));
+    transaction.onerror = () => { /* onabort owns rejection */ };
+  });
+}

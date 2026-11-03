@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
-import { list, read, save } from '../web/src/storage.ts';
+import { list, read, remove as removeStored, save, updateAll } from '../web/src/storage.ts';
 import { addSkill, availableSkills, installedSkills, loadSkill, removeSkill, setSkillEnabled, skillPrompt } from '../web/src/skill-library.ts';
+import type { InstalledSkill } from '../web/src/skill-library.ts';
 import { skillCatalog } from '../web/src/skill-catalog.ts';
 import { executeTool, systemPrompt, toolDefinitions } from '../web/src/agent-tools.ts';
 import { runAgent } from '../web/src/agent-loop.ts';
@@ -112,4 +113,98 @@ test('plot guidance upgrades preserve stable IDs and leave unrelated workflows c
   }
   assert.equal((await loadSkill('table-check')).version,'1.0.0');
   assert.doesNotMatch(systemPrompt,/用户在网页确认执行|网站.*提供箱线/);
+});
+
+const reorganizedIds = ['cell-annotation-review', 'cell-annotation-evidence', 'differential-enrichment-guide', 'differential-expression', 'functional-enrichment'];
+async function clearReorganizedSkills() {
+  for (const id of reorganizedIds) await removeStored('skills', id);
+}
+
+test('annotation merge preserves the selected state and date, upgrades the old version and consumes its legacy record', async () => {
+  await clearReorganizedSkills();
+  try {
+    const evidence: InstalledSkill = {id:'cell-annotation-evidence',version:'1.0.0',enabled:true,createdAt:'2026-10-29'};
+    await save('skills', evidence);
+    await Promise.all([installedSkills(), installedSkills(), availableSkills()]);
+    assert.deepEqual(await read('skills', 'cell-annotation-review'), {...evidence,id:'cell-annotation-review',version:'1.1.0'});
+    assert.equal((await loadSkill('cell-annotation-review')).version, '1.1.0');
+    await assert.rejects(read('skills', evidence.id), /找不到/);
+
+    const review: InstalledSkill = {id:'cell-annotation-review',version:'1.0.0',enabled:false,createdAt:'2026-10-28'};
+    await save('skills', review);
+    await save('skills', evidence);
+    await installedSkills();
+    assert.deepEqual(await read('skills', review.id), {...review,version:'1.1.0'});
+    await assert.rejects(loadSkill(review.id), /已停用/);
+    await assert.rejects(read('skills', evidence.id), /找不到/);
+
+    await removeSkill(review.id);
+    await Promise.all([installedSkills(), installedSkills()]);
+    await assert.rejects(read('skills', review.id), /找不到/);
+
+    await save('skills', {...evidence,enabled:false});
+    await installedSkills();
+    assert.equal((await read<InstalledSkill>('skills', review.id)).enabled, false);
+  } finally { await clearReorganizedSkills(); }
+});
+
+test('splitting an installed workflow preserves opt-in state and existing independent preferences', async () => {
+  await clearReorganizedSkills();
+  try {
+    const original: InstalledSkill = {id:'differential-enrichment-guide',version:'1.0.0',enabled:false,createdAt:'2026-10-27'};
+    await save('skills', original);
+    await installedSkills();
+    for (const id of ['differential-expression', 'functional-enrichment']) {
+      assert.deepEqual(await read('skills', id), {...original,id});
+      await assert.rejects(loadSkill(id), /已停用/);
+    }
+    await assert.rejects(read('skills', original.id), /找不到/);
+
+    const preferred: InstalledSkill = {id:'differential-expression',version:'1.0.0',enabled:false,createdAt:'2026-11-01'};
+    await save('skills', {...original,enabled:true});
+    await save('skills', preferred);
+    await removeStored('skills', 'functional-enrichment');
+    await installedSkills();
+    assert.deepEqual(await read('skills', preferred.id), preferred);
+    assert.deepEqual(await read('skills', 'functional-enrichment'), {...original,id:'functional-enrichment',enabled:true});
+    assert.equal((await loadSkill('functional-enrichment')).id, 'functional-enrichment');
+    assert.equal((await loadSkill('table-check')).version, '1.0.0');
+  } finally { await clearReorganizedSkills(); }
+});
+
+test('concurrent migration and user edits keep removals and disabled states durable', async () => {
+  await clearReorganizedSkills();
+  try {
+    await save('skills', {id:'differential-enrichment-guide',version:'1.0.0',enabled:true,createdAt:'2026-10-27'});
+    await Promise.all([
+      installedSkills(),
+      removeSkill('differential-expression'),
+      setSkillEnabled('functional-enrichment', false),
+      installedSkills(),
+    ]);
+    await installedSkills();
+    await assert.rejects(read('skills', 'differential-enrichment-guide'), /找不到/);
+    await assert.rejects(read('skills', 'differential-expression'), /找不到/);
+    assert.deepEqual(await read('skills', 'functional-enrichment'), {
+      id:'functional-enrichment',version:'1.0.0',enabled:false,createdAt:'2026-10-27',
+    });
+    await removeSkill('functional-enrichment');
+    assert(!(await installedSkills()).some(item => reorganizedIds.includes(item.id)));
+  } finally { await clearReorganizedSkills(); }
+});
+
+test('atomic record updates roll back earlier writes when a later record fails to serialize', async () => {
+  const original = {id:'atomic-existing',createdAt:'2026-10-25',enabled:false};
+  await save('skills', original);
+  try {
+    await assert.rejects(updateAll<typeof original>('skills', records => [
+      ...records.map(item => item.id === original.id ? {...item,enabled:true} : item),
+      {id:'atomic-invalid',createdAt:'2026-10-26',enabled:true,invalid:() => {}} as typeof original,
+    ]), error => error instanceof Error && error.name === 'DataCloneError');
+    assert.deepEqual(await read('skills', original.id), original);
+    await assert.rejects(read('skills', 'atomic-invalid'), /找不到/);
+  } finally {
+    await removeStored('skills', original.id);
+    await removeStored('skills', 'atomic-invalid');
+  }
 });
