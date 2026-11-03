@@ -246,7 +246,7 @@ export default function Chat() {
       {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
       {view==='omics'&&<section className="analysis-hub" aria-label="案例与图表">
         {initialRoute.request.plan&&<p className="retired-plot-note" role="status">表格绘图模块已移除，此旧方案不再提供确认或生成入口。已有结果仍可从运行记录查看。</p>}
-        <Suspense fallback={<p role="status" className="genome-loading">正在载入案例…</p>}><OmicsResources key={routeKey} initialTopic={initialRoute.request.case} onCaseChange={id=>showRoute(`/?view=omics&case=${id}`)} onChooseExample={()=>setExamplePicker(true)} onNavigate={navigate}/></Suspense>
+        <Suspense fallback={<p role="status" className="genome-loading">正在载入案例…</p>}><OmicsResources key={routeKey} initialTopic={initialRoute.request.case} onCaseChange={id=>showRoute(`/?view=omics&case=${id}`)} onNavigate={navigate}/></Suspense>
       </section>}
       {view==='history'&&<RunHistory key={routeKey} initialRunId={initialRoute.request.run}/>}
       <V1ExamplePicker open={examplePicker} onClose={()=>setExamplePicker(false)} onImported={dataset=>{void selectForChat(dataset.id);}} onCase={id=>showRoute(`/?view=omics&case=${id}`)}/>
