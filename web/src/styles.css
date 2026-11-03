@@ -2,19 +2,28 @@
   --radius-control: 10px;
   --radius-panel: 16px;
   --radius-dialog: 20px;
-  --lab-paper: #f7f9fa;
+  /* Shared by the launch page and the research workspace. */
+  --brand-ground: #fafbfe;
+  --brand-ink: #20304b;
+  --brand-muted: #67738b;
+  --brand-line: #e0e5f0;
+  --brand-accent: #4f46d6;
+  --lab-paper: var(--brand-ground);
   --sheet: #ffffff;
-  --inset: #f0f4f5;
-  --ink: #233342;
-  --ink-secondary: #637280;
-  --ink-tertiary: #82909b;
-  --ink-muted: #a0aab2;
-  --rule: rgba(44, 68, 83, .10);
-  --rule-emphasis: rgba(44, 68, 83, .18);
-  --accent: #24786f;
-  --accent-strong: #1c625b;
-  --accent-wash: #eaf4f1;
-  --accent-line: #a2c9be;
+  --rail: #f2f4fa;
+  --inset: #f0f2fa;
+  --ink: var(--brand-ink);
+  --ink-secondary: var(--brand-muted);
+  --ink-tertiary: var(--brand-muted);
+  --ink-muted: #98a2b6;
+  --rule: var(--brand-line);
+  --rule-emphasis: #cbd3e3;
+  --accent: var(--brand-accent);
+  --accent-strong: #4036b6;
+  --accent-wash: #eeedfc;
+  --accent-line: #b7b0ef;
+  --dialog-shadow: 0 20px 70px #20304b18;
+  --dialog-backdrop: #15203b66;
   --amber: #97702f;
   --amber-wash: #fbf6eb;
   --danger: #ab514b;
@@ -259,8 +268,8 @@ input[type='checkbox'], input[type='radio'] { width: 14px; height: 14px; margin:
 .agent-note { margin-top: 10px; text-align: center; }
 .agent-note .text-button { font-size: 12px; }
 
-.help-dialog { width: min(440px,calc(100vw - 32px)); border: 1px solid var(--rule-emphasis); background: var(--sheet); border-radius: var(--radius-dialog); padding: 20px 24px; color: var(--ink); max-height: calc(100dvh - 40px); overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,.18); }
-.help-dialog::backdrop { background: rgba(0,0,0,.3); }
+.help-dialog { width: min(440px,calc(100vw - 32px)); border: 1px solid var(--rule-emphasis); background: var(--sheet); border-radius: var(--radius-dialog); padding: 20px 24px; color: var(--ink); max-height: calc(100dvh - 40px); overflow-y: auto; box-shadow: var(--dialog-shadow); }
+.help-dialog::backdrop { background: var(--dialog-backdrop); }
 .dialog-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .help-dialog h2 { font-size: 15px; font-weight: 600; }
 .guide-steps { margin: 12px 0 20px; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
