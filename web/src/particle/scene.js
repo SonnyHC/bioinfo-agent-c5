@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later; see web/public/particle/LICENSE and NOTICE. */
 import { Shape, rotate, smooth, TAU } from './runtime/geometry.js';
 import { mountSculpture } from './runtime/motion.js';
+import { createRenderer } from './runtime/renderer.js';
+import { createMolecularRenderer } from './runtime/molecular-renderer.js';
 
 // A stylized double helix, not a molecular-scale structural model.
 export function makeHelix() {
@@ -115,18 +117,20 @@ export function createBiologyTimeline(scenes = [makeHelix(), makeProtein()], {ho
 }
 
 export const themes = {
-  light: {primary:[47,145,125],secondary:[108,172,153],accent:[193,153,95]},
-  dark: {primary:[96,221,185],secondary:[155,202,191],accent:[224,185,124]},
+  light: {primary:[79,70,214],secondary:[32,159,205],accent:[232,111,105]},
+  dark: {primary:[151,142,255],secondary:[76,207,234],accent:[255,148,135]},
 };
 export const HELIX_ZOOM = .79;
 export function mountHelix(canvas, {theme = 'light', onState, onScene} = {}) {
   let announced;
   const owner = mountSculpture(canvas, createBiologyTimeline(), {
+    rendererFactory: (surface, timeline, ready, options) => createMolecularRenderer(surface, timeline, ready, options)
+      ?? createRenderer(surface, timeline, ready, {...options, zoom:HELIX_ZOOM}),
     onState,
     onFrame({scene}) {
       if (scene && scene !== announced) { announced = scene; onScene?.(scene); }
     },
-    render:{projection:'perspective', zoom:HELIX_ZOOM, spacing:1.3, brush:1.1, materials:themes[theme]},
+    render:{projection:'perspective', zoom:1, spacing:1.3, brush:1.1, materials:themes[theme]},
   });
   if (!owner) return null;
   const click = event => { if (event.button === 0) owner.next(); };

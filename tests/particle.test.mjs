@@ -236,6 +236,30 @@ test('pointer response is visible, can be disabled, and recovers after the point
   assert(owner.inspect().maxOffset < .1, 'particles must return to their surface instead of drifting');
 });
 
+test('context restoration redraws a paused sculpture through the same animation owner', t => {
+  const env = environment(t);
+  const owner = mountHelix(env.canvas);
+  env.own(owner);
+  env.step();
+  owner.pause(true);
+  env.step();
+  const before = owner.inspect();
+  let restorationAllowed = false;
+  env.canvas.dispatch('webglcontextlost', {preventDefault() { restorationAllowed = true; }});
+  owner.refresh();
+  env.step(60000);
+  assert(restorationAllowed);
+  assert.equal(env.callbacks.size, 0);
+  assert.equal(owner.inspect().frames, before.frames);
+  env.canvas.dispatch('webglcontextrestored');
+  assert.equal(env.callbacks.size, 1);
+  env.step();
+  assert.equal(owner.inspect().frames, before.frames + 1);
+  assert.equal(owner.inspect().time, before.time);
+  assert.equal(owner.inspect().state, 'paused');
+  assert.equal(env.callbacks.size, 0);
+});
+
 test('hidden and offscreen time does not skip shapes, and disposal removes every listener and frame', t => {
   const env = environment(t);
   const owner = mountHelix(env.canvas);

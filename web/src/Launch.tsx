@@ -13,8 +13,8 @@ interface ParticleModule {
 
 // Message: make the path from biological data to a readable result approachable.
 // Subject/composition: a double helix and folded protein opposite editorial Chinese type.
-// Palette: mineral paper, deep teal and restrained brass; paired night palette.
-// Motion/camera: gentle rotation and automatic shape morphs, fixed perspective.
+// Palette: mist white, ink blue and indigo; blue-violet/cyan models with coral accents.
+// Motion/camera: smooth ribbon sculptures with particle transitions and a fixed camera.
 // Interaction: responsive pointer brush and click/keyboard switching, with static options.
 export default function Launch() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -60,14 +60,14 @@ export default function Launch() {
         </div>
         <figure className="launch-sculpture">
           <div className="launch-scene-label"><span>{scene==='double-helix'?'01 / DNA DOUBLE HELIX':'02 / PROTEIN FOLD'}</span><span>{scene==='double-helix'?'DNA 双螺旋':'蛋白质折叠'}</span></div>
-          <canvas ref={canvas} role="button" tabIndex={unavailable?-1:0} aria-disabled={unavailable} aria-label={scene==='double-helix'?'DNA 双螺旋粒子造型，点击切换为蛋白质':'蛋白质粒子造型，点击切换为 DNA 双螺旋'} aria-describedby="particle-interaction" data-motion={state} onKeyDown={event=>{if(!unavailable&&(event.key==='Enter'||event.key===' ')){event.preventDefault();if(!event.repeat)owner.current?.next();}}}>DNA 双螺旋与蛋白质的三维粒子示意。点击或按 Enter、空格键切换造型。</canvas>
+          <canvas ref={canvas} role="button" tabIndex={unavailable?-1:0} aria-disabled={unavailable} aria-label={scene==='double-helix'?'DNA 双螺旋立体造型，点击切换为蛋白质':'蛋白质立体造型，点击切换为 DNA 双螺旋'} aria-describedby="particle-interaction" data-motion={state} onKeyDown={event=>{if(!unavailable&&(event.key==='Enter'||event.key===' ')){event.preventDefault();if(!event.repeat)owner.current?.next();}}}>DNA 双螺旋与蛋白质的三维飘带造型。点击或按 Enter、空格键切换造型。</canvas>
           {state==='unsupported' && <div className="launch-fallback"><Dna size={112} strokeWidth={.7}/><p>从生命的线索，开始探索。</p></div>}
-          <figcaption><span id="particle-interaction">{state==='reduced'?'减少动态效果 · 点击切换静态造型':state==='paused'?'已暂停 · 点击切换静态造型':state==='loading'?'正在构建粒子结构…':state==='unsupported'?'生命的形状 · 静态示意':'自动变换 · 点击切换造型'}</span><div><button disabled={unavailable || state==='reduced'} onClick={()=>owner.current?.pause()} aria-label={state==='paused'?'播放动画':'暂停动画'}>{state==='paused'?<Play size={15}/>:<Pause size={15}/>}</button><button onClick={()=>setSettings(true)} aria-label="粒子显示设置"><SlidersHorizontal size={15}/></button></div></figcaption>
+          <figcaption><span id="particle-interaction">{state==='reduced'?'减少动态效果 · 点击切换静态造型':state==='paused'?'已暂停 · 点击切换静态造型':state==='loading'?'正在构建立体造型…':state==='unsupported'?'生命的形状 · 静态示意':'自动变换 · 点击切换造型'}</span><div><button disabled={unavailable || state==='reduced'} onClick={()=>owner.current?.pause()} aria-label={state==='paused'?'播放动画':'暂停动画'}>{state==='paused'?<Play size={15}/>:<Pause size={15}/>}</button><button onClick={()=>setSettings(true)} aria-label="造型显示设置"><SlidersHorizontal size={15}/></button></div></figcaption>
         </figure>
       </section>
       <section className="launch-pathways" aria-label="开始你的科研工作"><a href="/?view=chat"><span className="launch-path-number">01</span><div><h2>从问题开始</h2><p>把分析需求，变成可检查的步骤。</p></div><ArrowUpRight size={20}/></a><a href="/?view=skills"><span className="launch-path-number">02</span><div><h2>找到合适的技能</h2><p>按任务选择流程，让 AI 有章可循。</p></div><ArrowUpRight size={20}/></a><a href="/?view=omics"><span className="launch-path-number">03</span><div><h2>学习与复现案例</h2><p>查看附件原图、数据与复现代码。</p></div><ArrowUpRight size={20}/></a></section>
     </main>
     <footer className="launch-footer"><span>为好奇心，留出更多时间。</span><span>SCIENCE STARTS WITH A QUESTION.</span><a href="/particle/NOTICE" target="_blank" rel="noopener noreferrer">粒子引擎 · 开源说明</a></footer>
-    <dialog ref={dialog} className="launch-dialog" onCancel={()=>setSettings(false)} onClose={()=>setSettings(false)} aria-labelledby="particle-settings-title"><header><h2 id="particle-settings-title">粒子显示</h2><button aria-label="关闭显示设置" onClick={()=>setSettings(false)}><X size={20}/></button></header><p>选择你喜欢的观看方式。</p><label><span>镜头</span><select value={projection} onChange={e=>setProjection(e.target.value)}><option value="perspective">固定透视 · 呈现纵深</option><option value="orthographic">正交视角 · 保持比例</option></select></label><label className="launch-check"><input type="checkbox" checked={brush} onChange={e=>setBrush(e.target.checked)}/><span>指针轻触粒子</span></label><button className="launch-static" disabled={unavailable || state==='reduced'} onClick={()=>owner.current?.pause(state!=='paused')}>{state==='paused'?'恢复自动动画':'切换为静态造型'}</button><small>DNA 双螺旋与蛋白质造型均为艺术化示意。</small></dialog>
+    <dialog ref={dialog} className="launch-dialog" onCancel={()=>setSettings(false)} onClose={()=>setSettings(false)} aria-labelledby="particle-settings-title"><header><h2 id="particle-settings-title">造型显示</h2><button aria-label="关闭显示设置" onClick={()=>setSettings(false)}><X size={20}/></button></header><p>选择你喜欢的观看方式。</p><label><span>镜头</span><select value={projection} onChange={e=>setProjection(e.target.value)}><option value="perspective">固定透视 · 呈现纵深</option><option value="orthographic">正交视角 · 保持比例</option></select></label><label className="launch-check"><input type="checkbox" checked={brush} onChange={e=>setBrush(e.target.checked)}/><span>指针互动</span></label><button className="launch-static" disabled={unavailable || state==='reduced'} onClick={()=>owner.current?.pause(state!=='paused')}>{state==='paused'?'恢复自动动画':'切换为静态造型'}</button><small>DNA 双螺旋与蛋白质造型均为艺术化示意。</small></dialog>
   </div>;
 }

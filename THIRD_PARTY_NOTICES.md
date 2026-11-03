@@ -4,8 +4,15 @@
 
 - Source: https://github.com/LIghtJUNction/particle-sculpture-skill
 - Copyright (C) 2026 LIghtJUNction; AGPL-3.0-or-later. Runtime derives from TokenNotIncluded/api.lmm.best revision `8da4f3994299b7120c44b3fa579db35449a42188`.
-- The unmodified geometry, renderer, motion and timeline modules are retained in `web/src/particle/runtime/`. Original headers, license and attribution are retained; the complete license and notice are served at `/particle/LICENSE` and `/particle/NOTICE`.
-- BioInfoBuddy adds a stylized double-helix scene in `web/src/particle/scene.js`. This is a procedural illustration, not measured molecular geometry. The adapted scene retains the AGPL identifier.
+- The geometry, Canvas fallback renderer, adapted motion and timeline modules are retained in `web/src/particle/runtime/`. Original headers, license and attribution are retained; the complete license and notice are served at `/particle/LICENSE` and `/particle/NOTICE`.
+- BioInfoBuddy adds procedural DNA/protein scenes, smooth ribbon geometry and a WebGL mesh/particle renderer in `web/src/particle/`. The original runtime notices and adapted-scene AGPL identifiers are retained.
+
+## Three.js
+
+- Source: https://github.com/mrdoob/three.js
+- Installed package: `three`, pinned to `0.187.0`.
+- Copyright © 2010–2026 three.js authors; MIT license. The license is retained at `web/public/particle/THREE-LICENSE` and served at `/particle/THREE-LICENSE`.
+- Used for smooth molecular ribbons, lighting and particle transitions in the launch page.
 
 ## DeepSeek Harness
 

@@ -27,3 +27,8 @@ native-scroll scene control of TokenNotIncluded/hireferry at revision
 4393a467aa91ed0124c6fcbba5e9734ced75e55e. See references/hireferry.md for
 source links and the distinction between design reference and runtime support.
 The style studio's models and palettes are new authored examples.
+
+BioInfoBuddy smooth molecular renderer also uses Three.js 0.187.0.
+Copyright © 2010-2026 three.js authors; MIT license.
+The full MIT license is served at /particle/THREE-LICENSE.
+Source: https://github.com/mrdoob/three.js

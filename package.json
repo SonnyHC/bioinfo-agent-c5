@@ -20,7 +20,7 @@
     "test:python": "node scripts/test-python.mjs",
     "test:plugin": "node --test packages/dsh-plugin-bioinfo/test/*.test.mjs",
     "test:harness": "node packages/dsh-plugin-bioinfo/test/host-smoke.mjs",
-    "test:particles": "node --test tests/particle.test.mjs",
+    "test:particles": "node --test tests/particle.test.mjs tests/molecules.test.mjs tests/molecular-fit.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "dev:legacy": "tsx watch src/server.ts",
     "build:legacy": "tsc -p tsconfig.json",
@@ -34,6 +34,7 @@
     "multer": "2.5.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "three": "0.187.0",
     "zod": "4.6.7"
   },
   "devDependencies": {

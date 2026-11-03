@@ -2,14 +2,14 @@
 import { createRenderer } from './renderer.js';
 
 /** Own exactly one RAF. Pointer coordinates and velocity are in CSS pixels. */
-export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState = () => {}, render: renderOptions = {} } = {}) {
-  const renderer = createRenderer(canvas, timeline, undefined, renderOptions);
+export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState = () => {}, render: renderOptions = {}, rendererFactory = createRenderer } = {}) {
+  const renderer = rendererFactory(canvas, timeline, undefined, renderOptions);
   if (!renderer) { onState('unsupported'); return null; }
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const fine = matchMedia('(hover: hover) and (pointer: fine)');
   const pointer = { x: 0, y: 0, previousX: 0, previousY: 0, vx: 0, vy: 0, active: false };
   let target = { x: 0, y: 0, active: false };
-  let frame = null, disposed = false, visible = true, dirty = true;
+  let frame = null, disposed = false, visible = true, contextLost = false, dirty = true;
   let paused = navigator.connection?.saveData === true, last = 0, time = 0, selected = null, position = null;
   const state = () => reduced.matches ? 'reduced' : paused ? 'paused' : 'playing';
   let announced;
@@ -18,7 +18,7 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
     if (current !== announced) { announced = current; onState(current); }
   };
   const schedule = () => {
-    if (frame === null && !disposed && visible && !document.hidden) frame = requestAnimationFrame(render);
+    if (frame === null && !disposed && !contextLost && visible && !document.hidden) frame = requestAnimationFrame(render);
   };
   const refresh = () => { renderer.invalidateTheme(); dirty = true; schedule(); };
   const resetClock = () => {
@@ -29,7 +29,7 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
   };
   function render(now) {
     frame = null;
-    if (disposed || document.hidden || !visible) return;
+    if (disposed || contextLost || document.hidden || !visible) return;
     announce();
     const budget = fine.matches && innerWidth > 900 ? 1000 / 60 : 1000 / 30;
     const elapsed = last ? Math.min(80, now - last) : budget;
@@ -63,6 +63,8 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
   };
   const move = event => brush(event.clientX, event.clientY);
   const leave = () => { target.active = false; schedule(); };
+  const loseContext = event => { event.preventDefault(); contextLost = true; resetClock(); };
+  const restoreContext = () => { contextLost = false; resetClock(); };
   const touch = event => {
     if (event.touches.length === 1) brush(event.touches[0].clientX, event.touches[0].clientY);
     else leave();
@@ -84,6 +86,8 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
   canvas.addEventListener('touchmove', touch, { passive: true });
   canvas.addEventListener('touchend', leave, { passive: true });
   canvas.addEventListener('touchcancel', leave, { passive: true });
+  canvas.addEventListener('webglcontextlost', loseContext);
+  canvas.addEventListener('webglcontextrestored', restoreContext);
   document.addEventListener('visibilitychange', resetClock);
   reduced.addEventListener('change', resetClock);
   announce(); schedule();
@@ -109,6 +113,8 @@ export function mountSculpture(canvas, timeline, { onFrame = () => {}, onState =
       for (const name of ['pointerleave', 'pointercancel', 'pointerup']) canvas.removeEventListener(name, leave);
       canvas.removeEventListener('touchstart', touch); canvas.removeEventListener('touchmove', touch);
       canvas.removeEventListener('touchend', leave); canvas.removeEventListener('touchcancel', leave);
+      canvas.removeEventListener('webglcontextlost', loseContext);
+      canvas.removeEventListener('webglcontextrestored', restoreContext);
       document.removeEventListener('visibilitychange', resetClock);
       reduced.removeEventListener('change', resetClock); renderer.dispose();
     },
