@@ -8,10 +8,10 @@
 
 | 附件内容 | 网页入口 | 实现 / 资源位置 |
 | --- | --- | --- |
-| 四篇教程 | 使用教程 → 四篇组学专题；数据与绘图 → 案例与图表 → 专题教程 | `web/src/data/omics-guides.json`、`OmicsGuides.tsx`、`web/public/resources/v1/guides/` |
+| 四篇教程 | 使用教程 → 四篇组学专题；案例与图表 → 专题教程 | `web/src/data/omics-guides.json`、`OmicsGuides.tsx`、`web/public/resources/v1/guides/` |
 | 教程截图备注 | 每篇相关步骤的真实页面截图；全部教程截图 ZIP | `web/public/resources/v1/guides/screenshots/`、`guides-reproduction.zip` |
-| PBMC 四图与说明 | 数据与绘图 → 案例与图表 → 单细胞 | `omics-content.ts`、`resources/v1/single-cell/figures/` |
-| Visium 九图 | 数据与绘图 → 案例与图表 → 空间转录组 | `resources/v1/spatial/figures/` |
+| PBMC 四图与说明 | 案例与图表 → 单细胞 | `omics-content.ts`、`resources/v1/single-cell/figures/` |
+| Visium 九图 | 案例与图表 → 空间转录组 | `resources/v1/spatial/figures/` |
 | R / Python / QMD | 各案例下载区，单独文件和复现 ZIP | `resources/v1/single-cell/`、`resources/v1/spatial/` |
 | Mac / Windows 环境材料 | 案例环境步骤与包内 README；原件保留在完整原始包 | `install.R`、`environment.yml`、两个 README.md |
 | marker_summary.csv | 单细胞 → 附件 marker 汇总 | `supplied-marker-summary.csv` |
@@ -21,11 +21,11 @@
 
 ## 样例与绘图入口更新
 
-侧边栏统一为“数据与绘图”，其中“案例与图表”阅读附件案例，“表格绘图”导入并绘制小型结果表。主页面样例按钮和绘图页样例入口均让用户选择 V1.0 中的真实表格，不再自动载入合成分组实验。
+侧边栏“案例与图表”直接显示附件案例与图表，已移除手动“表格绘图”模块。主页面样例按钮让用户选择 V1.0 中的真实表格并载入 AI 对话，或直接查看完整案例；不再自动载入合成分组实验。已有运行记录只读保留，可查看和下载旧结果。
 
 - PBMC marker 汇总来自附件 `marker_summary.csv`，没有病例／对照标签，也没有统计检验 P 值。
 - GBM1 空间点位来自附件 `tissue_positions_list.csv`；导入版仅补充标准字段名，点位坐标不是表达矩阵或细胞类型标签。
-- 图型演示使用附件原图；不将缺少原图的箱线／柱状图伪装成附件结果。UMAP 仅作为散点呈现示例，网页普通散点图不会计算 UMAP。
+- 案例展示使用附件原图；不将附件图片或加载表格称为新生成的绘图结果。新增绘图与计算需在外部环境运行。
 - 浏览案例和载入表格都不执行 Seurat／Scanpy。原始矩阵、已有图片和外部复现代码仍按原用途提供。
 
 教程页面已移除合成表格截图，保留的历史界面截图明确标注版本。更新教程与截图后，需同步教程 ZIP 和 manifest 中的包大小、SHA-256。
@@ -67,9 +67,9 @@ npm run build
 
 页面截图必须来自本版实际 UI，保存在 `guides/screenshots/`；更新截图后重新执行资源脚本，才能同步教程 ZIP 和 manifest。图文包中的 Markdown 使用包内相对截图路径。
 
-本轮没有提交、推送或部署。现有 Vercel 配置复制这些静态资源；正式部署的传输限额、配额及远端下载状态需要在发布时核实。此项不作为已验证的生产发布。
+以上原始资料接入的验证记录不代表当前版本已经发布。现有 Vercel 配置复制这些静态资源；正式部署的传输限额、配额及远端下载状态需要在发布时核实。此项不作为已验证的生产发布。
 
-## 本轮验证
+## 原始资料接入验证记录
 
 - TypeScript 类型检查与生产构建。
 - 28 项前端/工具测试，包括原功能回归、下载流成功/取消/失败、截断、超长、哈希错误、路径限制和资源契约。

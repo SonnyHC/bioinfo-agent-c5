@@ -38,13 +38,14 @@ test('skills are opt-in, persist independently and reject removed, disabled or o
   await addSkill(id);
   assert.equal((await installedSkills()).length,1);
   assert.equal((await installedSkills())[0].createdAt, record.createdAt);
-  assert.match((await loadSkill(id)).content,/bio_preview_plan/);
+  assert.match((await loadSkill(id)).content,/外部 R\/Python/);
+  assert.doesNotMatch((await loadSkill(id)).content,/bio_preview_plan/);
   assert.match(await skillPrompt(id), /本轮流程已加载/);
   await setSkillEnabled(id,false);
   assert.deepEqual(await availableSkills(),[]);
   await assert.rejects(skillPrompt(id), /已停用/);
   await setSkillEnabled(id,true);
-  await save('skills',{...record,version:'0.0.1'});
+  await save('skills',{...record,version:'1.0.0'});
   assert.deepEqual(await availableSkills(),[]);
   await assert.rejects(loadSkill(id),/新版本/);
   await addSkill(id);
@@ -87,8 +88,28 @@ test('agent can discover and load an added skill through real tools without gain
 test('result review gets actual file names without sending blob URLs or file contents to the model', async () => {
   const id='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
   await save('runs',{id,planId:'plan',datasetId:'data',status:'completed',createdAt:'2026-10-30',summary:{rows:2},files:[{name:'chart.png',blob:new Blob(['binary'])},{name:'manifest.json',blob:new Blob(['private contents'])}]});
-  const result=await executeTool('bio_get_run',{runId:id},new AbortController().signal) as {outputFiles:string[]};
+  const result=await executeTool('bio_get_run',{runId:id},new AbortController().signal) as {outputFiles:string[];workbenchUrl:string};
   assert.deepEqual(result.outputFiles,['chart.png','manifest.json']);
+  assert.equal(result.workbenchUrl,`/?view=history&run=${id}`);
   assert(!JSON.stringify(result).includes('blob:'));
   assert(!JSON.stringify(result).includes('private contents'));
+});
+
+
+test('plot guidance upgrades preserve stable IDs and leave unrelated workflows current', async () => {
+  const revised = ['reviewed-bio-plot','matrix-heatmap','distribution-explorer'];
+  for (const id of revised) {
+    const skill = skillCatalog.find(item=>item.id===id)!;
+    assert.equal(skill.version,'1.1.0');
+    assert(!skill.tools.includes('bio_preview_plan'));
+    await save('skills',{id,version:'1.0.0',enabled:true,createdAt:'2026-10-30'});
+    await assert.rejects(loadSkill(id),/新版本/);
+    await addSkill(id);
+    const record = (await installedSkills()).find(item=>item.id===id)!;
+    assert.equal(record.createdAt,'2026-10-30');
+    assert.equal(record.enabled,true);
+    assert.match((await loadSkill(id)).content,/外部/);
+  }
+  assert.equal((await loadSkill('table-check')).version,'1.0.0');
+  assert.doesNotMatch(systemPrompt,/用户在网页确认执行|网站.*提供箱线/);
 });

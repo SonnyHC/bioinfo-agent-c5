@@ -87,28 +87,27 @@ test('invalid tool arguments become tool errors and never execute code', async (
   assert.match(result.find(m => m.role === 'tool')!.content!, /参数必须是对象/);
 });
 
-test('website tools inspect stored data and draft but cannot approve or run', async () => {
+test('website tools inspect stored data but retired plotting tools cannot create plans or run', async () => {
   const {executeTool,toolDefinitions} = await import('../web/src/agent-tools.ts');
   const originalFetch = globalThis.fetch;
   const recordId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   await save('datasets',{id:recordId,name:'test.csv',createdAt:'2026-10-30',file:new Blob(['group,value\nA,1']),rows:1,columns:[{name:'value',type:'number',missing:0}],preview:[{group:'A',value:1}],sha256:'test-hash'});
-  const calls:string[] = [];
+  const plansBefore = await list('plans');
+  let calls = 0;
   try {
-    globalThis.fetch = async (url,init) => {
-      calls.push(String(url)); assert.equal(String(url),'/api/analysis');
-      const sent = JSON.parse(String(init?.body));
-      assert.equal(sent.action,'preview');assert.equal(sent.config.chart,'box');
-      return new Response(JSON.stringify({inputRows:1,outputRows:1,preview:[],steps:[]}));
-    };
-    assert(!toolDefinitions.some(tool=>/run_approved|install|approve/.test(tool.function.name)));
+    globalThis.fetch = async () => {calls++;throw new Error('retired tools must not contact the analysis service');};
+    assert(!toolDefinitions.some(tool=>/preview_plan|run_approved|install|approve/.test(tool.function.name)));
     const inspected = await executeTool('bio_inspect_dataset',{datasetId:recordId},new AbortController().signal) as {rows:number};
-    assert.equal(inspected.rows,1);assert.equal(calls.length,0);
-    const result = await executeTool('bio_preview_plan',{datasetId:recordId,chart:'box',layout:'long',missing:'error',group:'group',y:'value'},new AbortController().signal) as {id:string;status:string;workbenchUrl:string};
-    assert.equal(result.status,'draft');assert.equal(result.workbenchUrl,`/?view=analysis&plan=${result.id}`);
-    assert.equal((await read<{status:string}>('plans',result.id)).status,'draft');
+    assert.equal(inspected.rows,1);
+    await assert.rejects(executeTool('bio_preview_plan',{datasetId:recordId,chart:'box',layout:'long',missing:'error',group:'group',y:'value'},new AbortController().signal),/表格绘图模块已移除/);
     await assert.rejects(executeTool('bio_run_approved_plan',{planId:recordId},new AbortController().signal),/没有这个工具/);
-    await assert.rejects(executeTool('bio_preview_plan',{datasetId:'../../file'},new AbortController().signal),/记录 ID/);
-    assert.equal(calls.length,1);
+    await assert.rejects(executeTool('bio_inspect_dataset',{datasetId:'../../file'},new AbortController().signal),/记录 ID/);
+    assert.deepEqual(await list('plans'),plansBefore);
+    assert.equal(calls,0);
+    assert.deepEqual(await executeTool('bio_open_workbench',{},new AbortController().signal),{workbenchUrl:'/?view=omics'});
+    const retired = await executeTool('bio_open_workbench',{planId:recordId},new AbortController().signal) as {workbenchUrl:string;note:string};
+    assert.equal(retired.workbenchUrl,'/?view=omics');assert.match(retired.note,/旧方案不能/);
+    assert.deepEqual(await executeTool('bio_open_workbench',{runId:recordId},new AbortController().signal),{workbenchUrl:`/?view=history&run=${recordId}`});
   } finally {globalThis.fetch=originalFetch;}
 });
 
@@ -118,7 +117,10 @@ test('main navigation restores legacy plan/run links and preserves chat dataset 
   assert.equal(safeAppLink(`/workbench?run=${recordId}`),`/?view=analysis&run=${recordId}`);
   assert.equal(safeAppLink(`/workbench/?plan=${recordId}`),`/?view=analysis&plan=${recordId}`);
   assert.deepEqual(appRoute(`/?dataset=${recordId}`),{view:'chat',request:{dataset:recordId}});
-  assert.deepEqual(appRoute(`/?view=analysis&dataset=${recordId}`),{view:'analysis',request:{dataset:recordId}});
+  assert.deepEqual(appRoute(`/?view=analysis&dataset=${recordId}`),{view:'chat',request:{dataset:recordId}});
+  assert.deepEqual(appRoute('/?view=analysis'),{view:'omics',request:{}});
+  assert.deepEqual(appRoute(`/workbench?run=${recordId}`),{view:'history',request:{run:recordId}});
+  assert.deepEqual(appRoute(`/?view=analysis&plan=${recordId}`),{view:'omics',request:{plan:recordId}});
   assert.deepEqual(appRoute('/?view=environments'),{view:'chat',request:{}});
   for(const view of ['connection','environments']) assert.equal(safeAppLink('/?view='+view),undefined);
   assert.deepEqual(appRoute('/?view=skills'),{view:'skills',request:{}});

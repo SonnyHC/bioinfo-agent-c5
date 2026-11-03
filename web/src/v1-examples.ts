@@ -21,7 +21,7 @@ export interface V1Example {
 export const v1Examples: readonly V1Example[] = [
   {
     id: 'pbmc-markers', caseId: 'single-cell', label: 'PBMC2700 · Marker 汇总',
-    description: '按细胞簇和基因查看表达比例、平均表达量，使用附件已有汇总表练习绘图。',
+    description: '按细胞簇和基因查看表达比例、平均表达量，使用附件已有汇总表讨论分析方法。',
     sourceNote: '243 行，保持附件原始数值；这是 marker 汇总，不是差异检验结果。',
     suggestedFields: '数值：pct、avg；分组：cluster、gene、marker_group。',
     previewImage: '/resources/v1/single-cell/figures/03_marker_dotplot.png',
@@ -33,7 +33,7 @@ export const v1Examples: readonly V1Example[] = [
   },
   {
     id: 'gbm1-positions', caseId: 'spatial', label: 'GBM1 · 空间点位',
-    description: '查看空间点位的阵列坐标、图像坐标和组织内标记，选择坐标字段绘制散点图。',
+    description: '查看空间点位的阵列坐标、图像坐标和组织内标记，在对话中检查字段与空间坐标含义。',
     sourceNote: '4,992 行，仅为附件无表头文件补充列名；保留组织内外全部点位，不含表达矩阵。',
     suggestedFields: '坐标：array_col / array_row 或 pxl_col_in_fullres / pxl_row_in_fullres；组织标记：in_tissue。',
     previewImage: '/resources/v1/spatial/figures/07_spatial_clusters.png',

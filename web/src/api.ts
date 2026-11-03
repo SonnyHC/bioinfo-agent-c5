@@ -52,7 +52,7 @@ async function runPlan(id: string, signal?: AbortSignal): Promise<Run> {
   runLocks.add(id);
   try {
     const plan = await read<SavedPlan>('plans', id);
-    if (plan.status !== 'approved') throw new Error('请先在数据与绘图中确认方案。');
+    if (plan.status !== 'approved') throw new Error('此方案尚未确认，无法运行。');
     const dataset = await read<SavedDataset>('datasets', plan.datasetId);
     const record = { id: crypto.randomUUID(), planId: id, datasetId: dataset.id, createdAt: new Date().toISOString() };
     let result: SavedRun;

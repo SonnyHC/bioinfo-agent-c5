@@ -39,11 +39,5 @@
 .chat-menu-close{align-self:flex-end;margin-bottom:4px}
 .chat-navigation-dialog .chat-brand{margin-bottom:16px}
 @media(max-width:560px){.chat-header .chat-menu{display:grid;flex-shrink:0}.chat-header{gap:8px}.chat-header>span{max-width:none;min-width:0}.chat-header>div{flex-shrink:0}.chat-header .chat-model{max-width:135px}.chat-rail{display:none}}
-/* The plotting sheet shares the app navigation and fits its remaining width. */
-.embedded-workbench{height:100%;min-height:600px}.embedded-workbench .workspace{grid-template-columns:190px minmax(280px,1fr) 240px}.embedded-workbench .workspace-number{display:none}.chat-rail-bottom>button{gap:8px}.model-dialog{max-height:calc(100dvh - 32px);overflow:auto}
-@media(max-width:1250px){.embedded-workbench{height:auto;overflow:visible}.embedded-workbench .workspace{grid-template-columns:180px minmax(0,1fr)}.embedded-workbench .parameters{grid-column:1/-1;border-top:1px solid var(--rule)}.embedded-workbench .main-panel{min-height:650px}.embedded-workbench .work-area{overflow:visible}}
-@media(max-width:650px){.embedded-workbench .workspace{display:flex;flex-direction:column}.embedded-workbench .sidebar{overflow:visible;max-height:none}.embedded-workbench .main-panel{min-height:500px}.embedded-workbench .parameters{overflow:visible}.embedded-workbench .workspace-heading{padding:20px 16px}.embedded-workbench .work-area{padding:16px}.embedded-workbench .view-tabs{padding:0 12px;overflow-x:auto}.embedded-workbench .view-tabs button{white-space:nowrap}}
-.embedded-workbench .workspace{grid-template-areas:none}.embedded-workbench .sidebar,.embedded-workbench .main-panel,.embedded-workbench .parameters{grid-area:auto}
-@media(min-width:681px) and (max-width:1250px){.embedded-workbench .parameters{grid-column:1/-1}}
 
 .chat-shell{font-family:'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif}.chat-shell .new-chat{border-radius:8px;font-size:12px;padding:8px 12px;gap:8px}

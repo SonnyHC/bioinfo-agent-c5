@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, Images, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
 import { api, importDataset } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
 import { requestModel } from './model-api';
@@ -10,11 +10,11 @@ import { executeTool, systemPrompt, toolDefinitions, toolLabels } from './agent-
 import { skillCatalog, type AnalysisSkill } from './skill-catalog';
 import { skillPrompt } from './skill-library';
 
-import App from './App';
+import RunHistory from './RunHistory';
 import V1ExamplePicker from './V1ExamplePicker';
 import Tutorial from './Tutorial';
 import { appRoute, messageParts, safeAppLink, viewLabels } from './navigation';
-import type { AnalysisView, MainView } from './navigation';
+import type { MainView } from './navigation';
 import './chat.css';
 const ReferenceGenomes = lazy(() => import('./ReferenceGenomes'));
 const SkillStore = lazy(() => import('./SkillStore'));
@@ -43,7 +43,6 @@ function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>vo
 export default function Chat() {
   const initialRoute = appRoute(window.location.pathname + window.location.search);
   const [view, setView] = useState<MainView>(initialRoute.view);
-  const [panelView,setPanelView] = useState<AnalysisView>(initialRoute.view === 'history' ? 'history' : 'analysis');
   const mobileNavigation = useRef<HTMLDialogElement>(null);
   const [conversation, setConversation] = useState<Conversation>(fresh);
   const [history, setHistory] = useState<Conversation[]>([]);
@@ -80,7 +79,6 @@ export default function Chat() {
     const next = appRoute(safe);
     if (push) window.history.pushState(null, '', safe);
     setView(next.view); setRouteKey(safe);
-    if (next.view === 'analysis' || next.view === 'history') setPanelView(next.view);
     mobileNavigation.current?.close();
     if (next.view === 'chat' && next.request.dataset) void selectForChat(next.request.dataset, false);
     void refreshData();
@@ -90,10 +88,10 @@ export default function Chat() {
     try {
       const selected = await api<ChatDataset>(`/datasets/${encodeURIComponent(id)}`);
       setSelectedDataset(selected); setError('');
-      setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），帮我选择适合的图例和参数，并生成待确认的转换方案。`);
+      setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），说明字段含义、数据质量和适合的分析方法。`);
       requestedDataset.current = id; preparedRequest.current = true;
       setView('chat'); mobileNavigation.current?.close();
-      if (push) window.history.pushState(null, '', `/?dataset=${encodeURIComponent(id)}`);
+      if (push) window.history.pushState(null, '', `/?view=chat&dataset=${encodeURIComponent(id)}`);
       await refreshData();
     } catch (reason) {setError(reason instanceof Error ? reason.message : '无法打开此数据。');setView('chat');}
   }
@@ -109,7 +107,7 @@ export default function Chat() {
     if (requestedDataset.current && !preparedRequest.current) {
       const selected = data.datasets.find(item=>item.id===requestedDataset.current);
       preparedRequest.current = true;
-      if (selected) {setSelectedDataset(selected);setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），帮我选择图例和参数。`);}
+      if (selected) {setSelectedDataset(selected);setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），说明数据质量与分析建议。`);}
       else setError('此浏览器中找不到指定表格，请重新导入。');
     }
   }
@@ -189,7 +187,7 @@ export default function Chat() {
     try {
       const imported = await importDataset(selected);
       setSelectedDataset(imported); await refreshData();
-      showRoute(`/?view=analysis&dataset=${imported.id}`);
+      await selectForChat(imported.id);
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : '导入失败。'); }
     finally { started.current = false; setBusy(false); setProgress(''); }
@@ -205,7 +203,7 @@ export default function Chat() {
     <a href="/" className="chat-brand" aria-label="返回 BioInfoBuddy 启动页"><Dna size={24}/><strong>BioinfoBuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={(view===id||(id==='analysis'&&view==='omics'))?'active':''} aria-current={(view===id||(id==='analysis'&&view==='omics'))?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'omics',icon:Database},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
@@ -226,10 +224,10 @@ export default function Chat() {
         <div ref={end}/>
       </div>
       <div className="chat-compose-area">
-        {!apiKey && <div className="chat-connection"><span>尚未配置模型 API，对话功能暂不可用；绘图和其他页面不受影响。</span><button className="text-link" onClick={openSettings}>配置模型 API</button></div>}
+        {!apiKey && <div className="chat-connection"><span>尚未配置模型 API，对话功能暂不可用；案例和其他页面不受影响。</span><button className="text-link" onClick={openSettings}>配置模型 API</button></div>}
         {error && <div className="chat-error" role="alert"><span>{error}</span><button className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15}/></button></div>}
         {conversation.skillId && <div className="chat-skill-strip"><Package size={14}/><span>本轮技能：{skillCatalog.find(skill => skill.id === conversation.skillId)?.name ?? conversation.skillId}</span><button disabled={busy} onClick={()=>navigate('skills')}>管理技能</button><button disabled={busy} aria-label="取消本轮指定技能" onClick={()=>{const next = {...conversation,skillId:undefined};if(next.messages.length)void persist(next).catch(reason=>setError(String(reason.message)));else setConversation(next);}}>取消指定<X size={12}/></button></div>}
-        {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前数据：' : `已导入 ${datasets.length} 份数据，最近：`}</span><a href={`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();showRoute(`/?view=analysis&dataset=${(selectedDataset||datasets[0]).id}`);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
+        {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前数据：' : `已导入 ${datasets.length} 份数据，最近：`}</span><a href={`/?view=chat&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();void selectForChat((selectedDataset||datasets[0]).id);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
           <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || '可附加 CSV、TSV、XLSX（≤ 2 MB）'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
@@ -240,12 +238,12 @@ export default function Chat() {
       {view==='tutorial'&&<Tutorial/>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
       {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
-      {(view==='analysis'||view==='omics')&&<section className="analysis-hub" aria-label="数据与绘图">
-        <nav className="analysis-hub-nav" aria-label="数据与绘图内容"><button aria-pressed={view==='analysis'} onClick={()=>navigate('analysis')}><Database size={16}/>表格绘图</button><button aria-pressed={view==='omics'} onClick={()=>navigate('omics')}><Images size={16}/>案例与图表</button><button className="hub-samples" disabled={busy||loading} onClick={()=>setExamplePicker(true)}>选择附件样例</button></nav>
-        {view==='analysis'?<section className="chat-analysis" aria-label="表格绘图"><App key={routeKey} embedded onExampleImported={id=>showRoute(`/?view=analysis&dataset=${id}`)} onDataset={(id:string)=>void selectForChat(id)}/></section>:<Suspense fallback={<p role="status" className="genome-loading">正在载入案例…</p>}><OmicsResources key={routeKey} initialTopic={initialRoute.request.case} onCaseChange={id=>showRoute(`/?view=omics&case=${id}`)} onNavigate={navigate}/></Suspense>}
+      {view==='omics'&&<section className="analysis-hub" aria-label="案例与图表">
+        {initialRoute.request.plan&&<p className="retired-plot-note" role="status">表格绘图模块已移除，此旧方案不再提供确认或生成入口。已有结果仍可从运行记录查看。</p>}
+        <Suspense fallback={<p role="status" className="genome-loading">正在载入案例…</p>}><OmicsResources key={routeKey} initialTopic={initialRoute.request.case} onCaseChange={id=>showRoute(`/?view=omics&case=${id}`)} onChooseExample={()=>setExamplePicker(true)} onNavigate={navigate}/></Suspense>
       </section>}
-      {view==='history'&&<section className="chat-analysis" aria-label={viewLabels[panelView]}><App key={routeKey} embedded initialHistory onExampleImported={id=>showRoute(`/?view=analysis&dataset=${id}`)} onDataset={(id:string)=>void selectForChat(id)}/></section>}
-      <V1ExamplePicker open={examplePicker} onClose={()=>setExamplePicker(false)} onImported={dataset=>{setSelectedDataset(dataset);showRoute(`/?view=analysis&dataset=${dataset.id}`);}} onCase={id=>showRoute(`/?view=omics&case=${id}`)}/>
+      {view==='history'&&<RunHistory key={routeKey} initialRunId={initialRoute.request.run}/>}
+      <V1ExamplePicker open={examplePicker} onClose={()=>setExamplePicker(false)} onImported={dataset=>{void selectForChat(dataset.id);}} onCase={id=>showRoute(`/?view=omics&case=${id}`)}/>
     </main>
     <dialog ref={dialog} className="model-dialog" onCancel={closeSettings}>
       <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={closeSettings}><X size={19}/></button></div>
