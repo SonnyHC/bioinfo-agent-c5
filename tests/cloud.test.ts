@@ -141,3 +141,43 @@ test('agent result links accept the main shell and reject non-app destinations',
     assert.equal(events.at(-1)?.url,expected);
   }
 });
+
+test('retired synthetic examples are unavailable and never contact the analysis service', async () => {
+  const { api } = await import('../web/src/api.ts');
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  try {
+    globalThis.fetch = async () => { requests++; throw new Error('unexpected network request'); };
+    for (const name of ['wide', 'long', 'expression']) {
+      await assert.rejects(api(`/examples/${name}`, {method:'POST'}), /不支持此操作/);
+    }
+    assert.equal(requests, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('cancelling while an inspection response is decoded does not save an imported dataset', async () => {
+  const { importDataset } = await import('../web/src/api.ts');
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  const before = (await list<{id:string}>('datasets')).map(item=>item.id).sort();
+  let inspected = false;
+  try {
+    globalThis.fetch = async (url, init) => {
+      assert.equal(String(url), '/api/analysis');
+      assert.equal(JSON.parse(String(init?.body)).action, 'inspect');
+      const response = new Response('{}');
+      response.json = async () => {
+        inspected = true;
+        controller.abort();
+        return {rows:1,columns:[{name:'value',type:'number',missing:0}],preview:[{value:1}],sha256:'cancelled-inspection'};
+      };
+      return response;
+    };
+    await assert.rejects(
+      importDataset(new File(['value\n1\n'], 'cancelled-inspection.csv', {type:'text/csv'}), controller.signal),
+      error => error instanceof Error && error.name === 'AbortError',
+    );
+    assert.equal(inspected, true);
+    assert.deepEqual((await list<{id:string}>('datasets')).map(item=>item.id).sort(), before);
+  } finally { globalThis.fetch = originalFetch; }
+});

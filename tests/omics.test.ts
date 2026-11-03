@@ -96,3 +96,11 @@ test('resources route and guidance skills do not create analysis or execution re
     assert(!skill.tools.some(name => /preview_plan|run|approve|install/.test(name)));
   }
 });
+
+
+test('case deep links preserve the chosen V1 case and reject unknown values', () => {
+  assert.deepEqual(appRoute('/?view=omics&case=spatial'), {view:'omics',request:{case:'spatial'}});
+  assert.equal(safeAppLink('/?view=omics&case=single-cell'), '/?view=omics&case=single-cell');
+  assert.equal(safeAppLink('/?view=omics&case=unknown'), undefined);
+  assert.equal(safeAppLink('/?view=omics&case=spatial&case=single-cell'), undefined);
+});

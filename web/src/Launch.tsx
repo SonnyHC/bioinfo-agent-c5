@@ -46,7 +46,7 @@ export default function Launch() {
   return <div className="launch" data-theme={theme}>
     <header className="launch-header">
       <a href="/" className="launch-brand" aria-label="BioInfoBuddy 首页"><Dna size={27} strokeWidth={1.5}/><span>BioinfoBuddy<span className="launch-brand-dot">.</span></span></a>
-      <nav aria-label="网站导航"><a href="/?view=skills">技能商店</a><a href="/?view=omics">组学案例</a><a href="/?view=tutorial">使用指南</a></nav>
+      <nav aria-label="网站导航"><a href="/?view=skills">技能商店</a><a href="/?view=omics">数据与绘图</a><a href="/?view=tutorial">使用指南</a></nav>
       <div className="launch-header-actions"><button onClick={()=>setTheme(theme==='light'?'dark':'light')} aria-label={theme==='light'?'切换深色':'切换浅色'}>{theme==='light'?<Moon size={18}/>:<Sun size={18}/>}</button><a href="/?view=chat">进入工作台<ArrowUpRight size={15}/></a></div>
     </header>
     <main>

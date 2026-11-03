@@ -1,7 +1,6 @@
 import { unzipSync } from 'fflate';
 import { list, read, save } from './storage';
 import type { Dataset, Plan, Run } from './types';
-import examples from './data/examples.json';
 
 type SavedDataset = Dataset & { file: Blob };
 type SavedRun = Omit<Run, 'artifacts'> & { files: { name: string; blob: Blob }[] };
@@ -43,6 +42,7 @@ export async function importDataset(file: File, signal?: AbortSignal) {
   if (!file.size || file.size > 2 * 1024 * 1024) throw new Error('请选择非空且不超过 2 MB 的文件。');
   const initial = { id: crypto.randomUUID(), name: file.name, file, createdAt: new Date().toISOString() };
   const profile = await (await analysis('inspect', initial, undefined, signal)).json();
+  signal?.throwIfAborted();
   return publicDataset(await save('datasets', { ...profile, ...initial } as SavedDataset));
 }
 
@@ -86,10 +86,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     result = await importDataset(file, init?.signal ?? undefined);
   } else if (path === '/datasets') result = { datasets: (await list<SavedDataset>('datasets')).map(publicDataset) };
   else if (/^\/datasets\/[^/]+$/.test(path)) result = publicDataset(await read<SavedDataset>('datasets', path.split('/')[2]));
-  else if (/^\/examples\/(wide|long|expression)$/.test(path) && method === 'POST') {
-    const id = path.split('/')[2] as 'wide' | 'long' | 'expression';
-    result = await importDataset(new File([examples[id]], `synthetic-${id}.csv`, { type: 'text/csv' }));
-  } else if (path === '/plans' && method === 'POST') {
+  else if (path === '/plans' && method === 'POST') {
     const dataset = await read<SavedDataset>('datasets', body.datasetId);
     const config = Object.fromEntries(['chart', 'layout', 'x', 'y', 'group', 'valueColumns', 'missing', 'title', 'xLabel', 'yLabel'].filter(key => body[key] !== undefined).map(key => [key, body[key]]));
     const preview = await (await analysis('preview', dataset, config, init?.signal ?? undefined)).json();

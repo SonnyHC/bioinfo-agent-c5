@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, Images, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Upload, X } from 'lucide-react';
-import { api, importDataset, post } from './api';
+import { api, importDataset } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
 import { requestModel } from './model-api';
 import { list, save } from './storage';
@@ -11,6 +11,7 @@ import { skillCatalog, type AnalysisSkill } from './skill-catalog';
 import { skillPrompt } from './skill-library';
 
 import App from './App';
+import V1ExamplePicker from './V1ExamplePicker';
 import Tutorial from './Tutorial';
 import { appRoute, messageParts, safeAppLink, viewLabels } from './navigation';
 import type { AnalysisView, MainView } from './navigation';
@@ -28,6 +29,12 @@ function recover(previous: Conversation): Conversation {
   if (incomplete >= 0) messages.splice(incomplete);
   return { ...previous, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
 }
+
+const examplePrompts = [
+  '单细胞质控时，nFeature_RNA 和线粒体比例的阈值应该怎么定？',
+  '我有一份 RNA-seq count 矩阵，差异分析选 DESeq2 还是 edgeR？',
+  '两组样本量都只有 3 个，箱线图上还适合做 t 检验吗？',
+];
 
 function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>void }) {
   return <div className="chat-message-text">{messageParts(text).map((part,index) => part.href ? <a key={index} href={part.href} onClick={event=>{if(!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey){event.preventDefault();onOpen(part.href!);}}}>{part.text} ↗</a> : <span key={index}>{part.text}</span>)}</div>;
@@ -56,6 +63,7 @@ export default function Chat() {
   const preparedRequest = useRef(false);
   const [remember, setRemember] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [examplePicker,setExamplePicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -186,17 +194,6 @@ export default function Chat() {
     catch (reason) { setError(reason instanceof Error ? reason.message : '导入失败。'); }
     finally { started.current = false; setBusy(false); setProgress(''); }
   }
-  async function example() {
-    if (started.current) return;
-    started.current = true; setBusy(true); setProgress('正在载入样例'); setError('');
-    try {
-      const imported = await post<ChatDataset>('/examples/wide');
-      setSelectedDataset(imported); await refreshData();
-      showRoute(`/?view=analysis&dataset=${imported.id}`);
-    }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '载入失败。'); }
-    finally { started.current = false; setBusy(false); setProgress(''); }
-  }
   function exportChat() {
     const blob = new Blob([JSON.stringify(conversation, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob); const link = document.createElement('a');
@@ -208,7 +205,7 @@ export default function Chat() {
     <a href="/" className="chat-brand" aria-label="返回 BioInfoBuddy 启动页"><Dna size={24}/><strong>BioinfoBuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'omics',icon:Images},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
+      {([{id:'chat',icon:MessageSquare},{id:'analysis',icon:Database},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={(view===id||(id==='analysis'&&view==='omics'))?'active':''} aria-current={(view===id||(id==='analysis'&&view==='omics'))?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
       <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
     </nav>
     <span className="chat-section-label">最近对话</span>
@@ -222,7 +219,7 @@ export default function Chat() {
       <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'?(conversation.messages.length?conversation.title:'生信分析'):viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
       <section className="chat-conversation" hidden={view!=='chat'} aria-label="AI 对话">
       <div className="chat-scroll">
-        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><p>连接国内模型 API，讨论生信问题，或导入表格生成图表。</p><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => void example()}><Database size={17}/>试用分组样例</button></div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
+        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => setExamplePicker(true)}><Database size={17}/>选择附件样例</button></div><div className="chat-examples"><span>可以这样问</span>{examplePrompts.map(prompt=><button key={prompt} disabled={busy||loading} onClick={()=>setInput(prompt)}>{prompt}</button>)}</div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
           {message.role === 'assistant' && <Dna className="chat-avatar" size={22}/>}
           <div>{message.content && <MessageText text={message.content} onOpen={showRoute}/>}{message.tool_calls?.map(call => { const event = conversation.events.find(item => item.id === call.id); return <div className="tool-step" key={call.id}>{event?.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event?.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}<span>{toolLabels[call.function.name] || call.function.name}{event?.detail && ` · ${event.detail}`}</span>{event?.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}</div>; })}</div>
         </div>)}</div>}
@@ -241,10 +238,14 @@ export default function Chat() {
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
       {view==='tutorial'&&<Tutorial onNavigate={navigate}/>}
-      {view==='omics'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入组学案例…</p>}><OmicsResources onNavigate={navigate}/></Suspense>}
       {view==='genomes'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入参考基因组…</p>}><ReferenceGenomes/></Suspense>}
       {view==='skills'&&<Suspense fallback={<p role="status" className="genome-loading">正在载入技能库…</p>}><SkillStore onUse={useSkill} agentBusy={busy || loading}/></Suspense>}
-      {(view==='analysis'||view==='history')&&<section className="chat-analysis" aria-label={viewLabels[panelView]}><App key={routeKey} embedded initialHistory={view==='history'} onDataset={(id:string)=>void selectForChat(id)}/></section>}
+      {(view==='analysis'||view==='omics')&&<section className="analysis-hub" aria-label="数据与绘图">
+        <nav className="analysis-hub-nav" aria-label="数据与绘图内容"><button aria-pressed={view==='analysis'} onClick={()=>navigate('analysis')}><Database size={16}/>表格绘图</button><button aria-pressed={view==='omics'} onClick={()=>navigate('omics')}><Images size={16}/>案例与图表</button><button className="hub-samples" disabled={busy||loading} onClick={()=>setExamplePicker(true)}>选择附件样例</button></nav>
+        {view==='analysis'?<section className="chat-analysis" aria-label="表格绘图"><App key={routeKey} embedded onExampleImported={id=>showRoute(`/?view=analysis&dataset=${id}`)} onDataset={(id:string)=>void selectForChat(id)}/></section>:<Suspense fallback={<p role="status" className="genome-loading">正在载入案例…</p>}><OmicsResources key={routeKey} initialTopic={initialRoute.request.case} onCaseChange={id=>showRoute(`/?view=omics&case=${id}`)} onNavigate={navigate}/></Suspense>}
+      </section>}
+      {view==='history'&&<section className="chat-analysis" aria-label={viewLabels[panelView]}><App key={routeKey} embedded initialHistory onExampleImported={id=>showRoute(`/?view=analysis&dataset=${id}`)} onDataset={(id:string)=>void selectForChat(id)}/></section>}
+      <V1ExamplePicker open={examplePicker} onClose={()=>setExamplePicker(false)} onImported={dataset=>{setSelectedDataset(dataset);showRoute(`/?view=analysis&dataset=${dataset.id}`);}} onCase={id=>showRoute(`/?view=omics&case=${id}`)}/>
     </main>
     <dialog ref={dialog} className="model-dialog" onCancel={closeSettings}>
       <div className="model-dialog-heading"><Dna size={23}/><h2>{apiKey ? '模型设置' : '配置 API Key'}</h2><button className="icon-button" aria-label="关闭模型设置" onClick={closeSettings}><X size={19}/></button></div>

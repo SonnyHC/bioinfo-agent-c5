@@ -321,8 +321,8 @@
     },
     "guides": {
       "url": "/resources/v1/guides-reproduction.zip",
-      "bytes": 180605,
-      "sha256": "ad2e69c5427f38564a12e9390258ebbb3b5e1846cb90746e030d814e6f96f52e"
+      "bytes": 123557,
+      "sha256": "3cb876fa949198c7588616e57590d642ae9c6ed9fbfa104e21e0498eed395551"
     }
   }
 }

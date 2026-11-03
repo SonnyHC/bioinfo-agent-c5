@@ -13,8 +13,8 @@ const mb = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 type Topic = 'single-cell' | 'spatial' | 'guides' | 'original';
 const topics: {id: Topic; label: string}[] = [{id:'single-cell',label:'单细胞'}, {id:'spatial',label:'空间转录组'}, {id:'guides',label:'专题教程'}, {id:'original',label:'完整原始资料'}];
 
-export default function OmicsResources({onNavigate}: {onNavigate: (view: MainView) => void}) {
-  const [topic, setTopic] = useState<Topic>('single-cell');
+export default function OmicsResources({onNavigate,initialTopic = 'single-cell',onCaseChange}: {onNavigate: (view: MainView) => void;initialTopic?:'single-cell'|'spatial';onCaseChange?:(id:'single-cell'|'spatial')=>void}) {
+  const [topic, setTopic] = useState<Topic>(initialTopic);
   const [busy, setBusy] = useState(false);
   const [received, setReceived] = useState(0);
   const [feedback, setFeedback] = useState('');
@@ -42,8 +42,8 @@ export default function OmicsResources({onNavigate}: {onNavigate: (view: MainVie
   }
 
   return <div className="omics-scroll"><div className="omics-layout">
-    <header className="omics-heading"><h1>组学案例</h1><p>单细胞与空间转录组示例结果，附带数据、代码和参数，可在外部 R / Python 环境中复现。资料版本 V1.0。</p></header>
-    <nav className="omics-tabs" aria-label="组学资料分类">{topics.map(item => <button key={item.id} aria-pressed={topic === item.id} onClick={() => setTopic(item.id)}>{item.label}</button>)}</nav>
+    <header className="omics-heading"><h1>案例与图表</h1><p>单细胞与空间转录组示例结果，附带数据、代码和参数，可在外部 R / Python 环境中复现。资料版本 V1.0。</p></header>
+    <nav className="omics-tabs" aria-label="组学资料分类">{topics.map(item => <button key={item.id} aria-pressed={topic === item.id} onClick={() => {if((item.id==='single-cell'||item.id==='spatial')&&onCaseChange) onCaseChange(item.id);else setTopic(item.id);}}>{item.label}</button>)}</nav>
     {example && <article key={example.id} className="omics-case">
       <div className="omics-case-intro"><div><p className="omics-kicker">{example.label} · 附件示例</p><h2>{example.title}</h2><p>{example.description}</p></div><button className="button" onClick={() => setTopic('guides')}><BookOpen size={15}/>阅读专题教程</button></div>
       <dl className="omics-facts">{example.facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>

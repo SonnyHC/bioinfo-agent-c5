@@ -325,6 +325,11 @@ for path in sorted((root / "results").glob("[0-9][0-9]_*.png")):
     r_files = {'generate_four_plots.R': r, 'install.R': R_INSTALL, 'README.md': R_GUIDE, 'colors.R': colors,
                'supplied-marker-summary.csv': files[single + '示例数据与代码/marker_summary.csv']}
     py_files = {'st_scanpy.py': py, 'st_scanpy.qmd': qmd, 'environment.yml': PY_ENV, 'README.md': PY_GUIDE}
+    # Browser table examples retain every source row; Visium's legacy positions file only needs a header.
+    positions = files[spatial + '示例数据与代码/GSE194329_RAW/GBM1_spaceranger_out/spatial/tissue_positions_list.csv']
+    write('spatial/supplied-tissue-positions.csv', positions)
+    write('spatial/tissue-positions-with-header.csv',
+          b'barcode,in_tissue,array_row,array_col,pxl_row_in_fullres,pxl_col_in_fullres\n' + positions)
     for folder, entries in [('single-cell', r_files), ('spatial', py_files)]:
         for name, data in entries.items():
             write(folder + '/' + name, data)
@@ -343,8 +348,9 @@ for path in sorted((root / "results").glob("[0-9][0-9]_*.png")):
     for guide in guides:
         write('guides/' + guide['id'] + '.md', guide_markdown(guide))
     guide_files = {guide['id'] + '.md': guide_markdown(guide) for guide in guides}
-    for path in (OUT / 'guides/screenshots').glob('*.jpg'):
-        guide_files['screenshots/' + path.name] = path.read_bytes()
+    screenshots = {section['screenshot'] for guide in guides for section in guide['sections'] if section.get('screenshot')}
+    for name in sorted(screenshots):
+        guide_files['screenshots/' + name] = (OUT / 'guides/screenshots' / name).read_bytes()
     manifest['packages']['guides'] = write('guides-reproduction.zip', package(guide_files))
     write('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
     (ROOT / 'web/src/data/omics-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')

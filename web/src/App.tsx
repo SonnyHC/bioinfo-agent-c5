@@ -6,7 +6,11 @@ import {
   RefreshCw, Upload, X,
 } from 'lucide-react';
 import { api, post } from './api';
+import V1ExamplePicker from './V1ExamplePicker';
+import { v1Examples } from './v1-examples';
 import { formatAnalysisText } from './analysis-text';
+import ChartPreview from './ChartPreview';
+import { chartPreviews } from './chart-previews';
 import type { ChartKind, Dataset, DataRow, Plan, PlotConfig, Run, ServiceStatus } from './types';
 
 const charts: { id: ChartKind; name: string; description: string }[] = [
@@ -32,6 +36,8 @@ const tabs: { id: Tab; label: string }[] = [
 ];
 
 function configFor(dataset: Dataset, chart: ChartKind = 'box'): PlotConfig {
+  const supplied = v1Examples.find(item=>item.filename===dataset.name && item.columns.every(name=>dataset.columns.some(column=>column.name===name)));
+  if(supplied && (chart==='box'||chart==='scatter')) return {...defaultConfig,chart:'scatter',layout:'long',x:supplied.caseId==='single-cell'?'pct':'array_col',y:supplied.caseId==='single-cell'?'avg':'array_row',group:supplied.caseId==='single-cell'?'marker_group':'in_tissue'};
   const numeric = dataset.columns.filter(c => c.type === 'number').map(c => c.name);
   const text = dataset.columns.filter(c => c.type !== 'number').map(c => c.name);
   const group = text.find(name => /group|condition|treatment|分组|组别/i.test(name)) ?? text[0] ?? '';
@@ -47,29 +53,6 @@ function configFor(dataset: Dataset, chart: ChartKind = 'box'): PlotConfig {
 function dateLabel(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-function ChartGlyph({ kind, large = false }: { kind: ChartKind; large?: boolean }) {
-  return <svg viewBox="0 0 88 48" className={`chart-glyph ${large ? 'large' : ''}`} aria-hidden="true">
-    <path d="M9 5v35h71" className="glyph-axis" />
-    {kind === 'box' && <>
-      <path d="M27 9v27M21 9h12M21 36h12M58 5v30M52 5h12M52 30h12" />
-      <rect x="19" y="18" width="16" height="11" rx="1" /><path d="M19 23h16" />
-      <rect x="50" y="12" width="16" height="12" rx="1" /><path d="M50 18h16" />
-      <circle cx="26" cy="32" r="1" /><circle cx="61" cy="8" r="1" />
-    </>}
-    {kind === 'violin' && <>
-      <path d="M28 7c-2 7-11 9-11 17s10 10 11 13c2-3 11-5 11-13S30 14 28 7Z" />
-      <path d="M60 5c-1 6-10 12-10 18s9 10 10 13c2-3 10-6 10-13S62 11 60 5Z" />
-      <path d="M28 19v10M60 15v12" className="glyph-dark" />
-    </>}
-    {kind === 'scatter' && [[20,31],[27,28],[33,32],[40,22],[44,27],[49,16],[57,19],[63,13],[69,9],[73,16]].map(([cx,cy],i) => <circle key={i} cx={cx} cy={cy} r="2.4" />)}
-    {kind === 'histogram' && [10,19,29,33,23,14,6].map((h,i) => <rect key={i} x={17+i*8} y={39-h} width="7" height={h} />)}
-    {kind === 'bar' && <>
-      {[16,28,21].map((h,i) => <g key={i}><rect x={20+i*20} y={39-h} width="12" height={h} /><path d={`M${26+i*20} ${34-h}v10m-4-10h8`} /></g>)}
-    </>}
-    {kind === 'heatmap' && Array.from({length: 24},(_,i) => <rect key={i} x={15+i%6*10} y={6+Math.floor(i/6)*8} width="9" height="7" style={{opacity: .22 + ((i*7)%11)/14}} />)}
-  </svg>;
 }
 
 function DataTable({ rows, columns, count, fields }: { rows: DataRow[]; columns: string[]; count: number; fields?: Dataset['columns'] }) {
@@ -94,7 +77,7 @@ function FieldSelect({ label, value, onChange, columns, optional = false, emptyL
   </select></label>;
 }
 
-export default function App({embedded = false, initialHistory = false, onDataset}: {embedded?:boolean;initialHistory?:boolean;onDataset?:(id:string)=>void}) {
+export default function App({embedded = false, initialHistory = false, onDataset,onExampleImported}: {embedded?:boolean;initialHistory?:boolean;onDataset?:(id:string)=>void;onExampleImported?:(id:string)=>void}) {
   const [status, setStatus] = useState<ServiceStatus | null>(null);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [dataset, setDataset] = useState<Dataset | null>(null);
@@ -110,6 +93,7 @@ export default function App({embedded = false, initialHistory = false, onDataset
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [dialog, setDialog] = useState<'help' | null>(null);
+  const [examplePicker,setExamplePicker] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -174,6 +158,7 @@ export default function App({embedded = false, initialHistory = false, onDataset
   }
 
   function selectChart(chart: ChartKind) {
+    if(chart==='scatter' && dataset && v1Examples.some(item=>item.filename===dataset.name)) {changeConfig(configFor(dataset,chart));return;}
     const layout = ['scatter','histogram','heatmap'].includes(chart) ? 'long' : config.layout;
     changeConfig({chart,layout, ...(chart === 'scatter' ? {x: numericColumns[0] ?? '',y: numericColumns[1] ?? numericColumns[0] ?? '',group:''} : {}), ...(chart === 'histogram' ? {group:''} : {}), ...(chart === 'heatmap' ? {x:dataset?.columns.find(column => column.type !== 'number')?.name ?? ''} : {})});
   }
@@ -183,11 +168,6 @@ export default function App({embedded = false, initialHistory = false, onDataset
     try { return await action(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '操作失败，请重试。'); }
     finally { setBusy(''); }
-  }
-
-  async function loadExample(id: 'wide' | 'long' | 'expression') {
-    const result = await perform('正在载入合成样例', () => post<Dataset>(`/examples/${id}`));
-    if (result) { setDatasets(previous => [result,...previous.filter(item => item.id !== result.id)]); selectDataset(result,id === 'expression' ? 'heatmap' : 'box'); }
   }
 
   async function upload(file: File) {
@@ -296,13 +276,11 @@ export default function App({embedded = false, initialHistory = false, onDataset
           </button>
           {datasets.length > 0 && <div className="dataset-list">{datasets.map(item => <button key={item.id} className={`dataset-item ${dataset?.id === item.id ? 'active' : ''}`} onClick={() => selectDataset(item)} disabled={isBusy} title={item.name}><FileSpreadsheet size={15}/><span><strong>{item.name}</strong><small>{item.rows.toLocaleString()} 行 × {item.columns.length} 列</small></span></button>)}</div>}
         </section>
-        <section className="side-section sample-section"><div className="section-heading"><h2>样例数据</h2></div>
-          <button className="sample-button" disabled={isBusy} onClick={() => void loadExample('wide')}><strong>分组实验（宽表）</strong><small>每列一组</small></button>
-          <button className="sample-button" disabled={isBusy} onClick={() => void loadExample('long')}><strong>分组实验（长表）</strong><small>每行一次测量</small></button>
-          <button className="sample-button" disabled={isBusy} onClick={() => void loadExample('expression')}><strong>表达矩阵</strong><small>基因 × 样本</small></button>
+        <section className="side-section sample-section"><div className="section-heading"><h2>附件样例</h2></div>
+          <button className="sample-button" disabled={isBusy} onClick={()=>setExamplePicker(true)}><strong>选择 V1.0 案例</strong><small>单细胞 marker · 空间点位</small></button>
         </section>
         <section className="side-section templates-section"><div className="section-heading"><h2>图表类型</h2></div>
-          <div className="template-grid">{charts.map(chart => <button key={chart.id} className={`template-option ${config.chart === chart.id ? 'active' : ''}`} onClick={() => selectChart(chart.id)} disabled={isBusy} aria-pressed={config.chart === chart.id} title={chart.description}><ChartGlyph kind={chart.id}/><span>{chart.name}</span></button>)}</div>
+          <div className="template-grid">{charts.map(chart => <button key={chart.id} className={`template-option ${config.chart === chart.id ? 'active' : ''}`} onClick={() => selectChart(chart.id)} disabled={isBusy} aria-pressed={config.chart === chart.id} title={chart.description}><ChartPreview kind={chart.id}/><span>{chart.name}</span></button>)}</div><p className="chart-preview-note">V1.0 附件原图 · 仅作图型参考</p>
         </section>
       </aside>
 
@@ -318,7 +296,7 @@ export default function App({embedded = false, initialHistory = false, onDataset
               {dataset.warnings?.map((warning,index) => <Notice key={index}>{formatAnalysisText(warning)}</Notice>)}
               <DataTable rows={dataset.preview} columns={allColumns} count={dataset.rows} fields={dataset.columns}/>
               <div className="next-action"><span>图表类型：{selectedChart.name}</span><button className="button" onClick={() => void previewPlan()} disabled={isBusy}>预览转换方案<ArrowRight size={14}/></button></div>
-            </> : <div className="empty-state welcome-state"><h2>导入一份表格</h2><p>支持 CSV、TSV、XLSX，单个文件不超过 {maxUpload} MB。也可以先用样例数据练习。</p><div className="empty-actions"><button className="button primary" onClick={() => fileRef.current?.click()} disabled={isBusy}><Upload size={15}/>导入文件</button><button className="button" onClick={() => void loadExample('wide')} disabled={isBusy}>载入样例数据</button></div></div>)}
+            </> : <div className="empty-state welcome-state"><h2>导入一份表格</h2><p>支持 CSV、TSV、XLSX，单个文件不超过 {maxUpload} MB。也可以先用样例数据练习。</p><div className="empty-actions"><button className="button primary" onClick={() => fileRef.current?.click()} disabled={isBusy}><Upload size={15}/>导入文件</button><button className="button" onClick={() => setExamplePicker(true)} disabled={isBusy}>选择附件样例</button></div></div>)}
 
             {tab === 'plan' && <div className="plan-inbox"><label><span>已保存的方案</span><select value={plan?.id ?? ''} onChange={event => {const next = plans.find(item => item.id === event.target.value);if(next) void loadPlan(next);}} disabled={isBusy}><option value="">选择方案</option>{plans.filter(item => !dataset || item.datasetId === dataset.id).map(item => <option key={item.id} value={item.id}>{charts.find(chart => chart.id === item.chart)?.name ?? item.chart} · {dateLabel(item.createdAt)} · {item.status === 'approved' ? '已确认' : '未确认'} · {item.id.slice(0,6)}</option>)}</select></label><button className="text-button" disabled={isBusy} onClick={() => void refreshRecords()}><RefreshCw size={12}/>刷新</button></div>}
             {tab === 'plan' && (plan ? <>
@@ -347,7 +325,7 @@ export default function App({embedded = false, initialHistory = false, onDataset
 
       <aside className="parameters" aria-label="绘图设置">
         <div className="parameter-header"><h2>绘图设置</h2></div>
-        <div className="selected-template"><ChartGlyph kind={config.chart}/><div><strong>{selectedChart.name}</strong><span>{selectedChart.description}</span></div></div>
+        <div className="selected-template"><ChartPreview kind={config.chart}/><div><strong>{selectedChart.name}</strong><span>{selectedChart.description}</span>{chartPreviews[config.chart] && <small className="chart-preview-caption">{chartPreviews[config.chart]!.caption}</small>}</div></div>{chartPreviews[config.chart] && <a className="chart-preview-source" href={chartPreviews[config.chart]!.url} target="_blank" rel="noreferrer">查看附件原图<ArrowUpRight size={12}/></a>}
         <fieldset className="parameter-fields" disabled={!dataset || isBusy}>
           <legend className="sr-only">设置图表数据与样式</legend>
           {groupedChart && <div className="parameter-section"><h3>数据格式</h3><div className="segmented"><button type="button" className={config.layout === 'wide' ? 'active' : ''} aria-pressed={config.layout === 'wide'} onClick={() => changeConfig({layout:'wide'})}>宽表</button><button type="button" className={config.layout === 'long' ? 'active' : ''} aria-pressed={config.layout === 'long'} onClick={() => changeConfig({layout:'long'})}>长表</button></div><p className="field-hint">{config.layout === 'wide' ? '每个数值列是一组。' : '一列分组，一列数值。'}</p></div>}
@@ -368,6 +346,7 @@ export default function App({embedded = false, initialHistory = false, onDataset
     </div>
 
     <div className="live-announcement sr-only" aria-live="polite">{busy || (run?.status === 'completed' ? '图表已生成，可在结果图中下载。' : '')}</div>
+    <V1ExamplePicker open={examplePicker} onClose={()=>setExamplePicker(false)} onImported={result=>{setDatasets(previous=>[result,...previous.filter(item=>item.id!==result.id)]);selectDataset(result,'box');if(onExampleImported)onExampleImported(result.id);else window.history.replaceState(null,'',`/?view=analysis&dataset=${result.id}`);}} onCase={id=>{window.location.href=`/?view=omics&case=${id}`;}}/>
     <dialog className="help-dialog" ref={dialogRef} onCancel={() => setDialog(null)} onClick={event => {if (event.target === event.currentTarget) setDialog(null);}}>
       <div className="dialog-header"><h2>使用说明</h2><button className="icon-button" aria-label="关闭窗口" onClick={() => setDialog(null)}><X size={18}/></button></div>
       <ol className="guide-steps">
