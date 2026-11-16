@@ -13,7 +13,7 @@ npm run build:desktop-web
 npm run package:desktop
 ```
 
-`release/` 下的 `BioInfoBuddy-<版本>-macOS-arm64.dmg` 适用于 macOS 13 及以上 Apple Silicon，可将应用拖入 Applications。`BioInfoBuddy-<版本>-Windows-x64-Setup.exe` 适用于 64 位 Windows 10 及以上，安装在当前用户目录，并加入开始菜单与系统卸载列表。打包命令会输出两份文件的 SHA-256。独立官网仓库负责发布页面与下载，在官网仓库内运行 `npm run stage:release -- "<本仓库的绝对路径>/release"` 即可登记两个文件的版本、大小和校验值。
+`release/` 下的 `BioInfoBuddy-<版本>-macOS-arm64.dmg` 适用于 macOS 13 及以上 Apple Silicon，可将应用拖入 Applications。`BioInfoBuddy-<版本>-Windows-x64-Setup.exe` 适用于 64 位 Windows 10 及以上，安装在当前用户目录，并加入开始菜单与系统卸载列表。打包命令会输出两份文件的 SHA-256。两个安装包可放在同一目录交给官网维护者。维护者在独立官网仓库运行 `npm run stage:release -- "<交付安装包所在目录>"`，即可登记版本、大小和校验值，准备上架。
 
 ## 功能
 
