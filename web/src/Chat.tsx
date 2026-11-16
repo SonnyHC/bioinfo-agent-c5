@@ -54,6 +54,8 @@ function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>vo
 }
 
 export default function Chat() {
+  const desktop = Boolean(window.bioInfoBuddyDesktop);
+  const storageLocation = desktop ? '本机' : '此浏览器';
   const initialRoute = appRoute(window.location.pathname + window.location.search);
   const [view, setView] = useState<MainView>(initialRoute.view);
   const mobileNavigation = useRef<HTMLDialogElement>(null);
@@ -121,11 +123,11 @@ export default function Chat() {
       const selected = data.datasets.find(item=>item.id===requestedDataset.current);
       preparedRequest.current = true;
       if (selected) {setSelectedDataset(selected);setInput(`请先检查表格「${selected.name}」（数据 ID：${selected.id}），说明数据质量与分析建议。`);}
-      else setError('此浏览器中找不到指定表格，请重新导入。');
+      else setError(`${storageLocation}中找不到指定表格，请重新导入。`);
     }
   }
   useEffect(() => {
-    document.title = 'bioinfobuddy';
+    document.title = desktop ? 'BioInfoBuddy' : 'bioinfobuddy';
     try {
       const selected = localStorage.getItem(PROVIDER) || 'deepseek';
       const current = (Object.hasOwn(providers,selected) ? selected : 'deepseek') as Provider;
@@ -220,7 +222,9 @@ export default function Chat() {
   }
 
   const navigation = <>
-    <a href="/" className="chat-brand" aria-label="返回 BioInfoBuddy 启动页"><Dna size={24}/><strong>BioinfoBuddy</strong></a>
+    <a href="/" className="chat-brand" aria-label={desktop ? '返回 AI 对话' : '返回 BioInfoBuddy 启动页'} onClick={event => {
+      if (desktop) { event.preventDefault(); navigate('chat'); }
+    }}><Dna size={24}/><strong>BioinfoBuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
       {primaryNavigation.map(({ id, icon: Icon }) => (
@@ -230,7 +234,7 @@ export default function Chat() {
       ))}
     </nav>
     <span className="chat-section-label">最近对话</span>
-    <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>暂无对话。对话记录保存在此浏览器。</p>}</nav>
+    <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>暂无对话。对话记录保存在{storageLocation}。</p>}</nav>
     <div className="chat-rail-bottom"><button disabled={busy} onClick={()=>{mobileNavigation.current?.close();openSettings();}}><Settings2 size={16}/>{apiKey?'模型设置':'配置模型 API'}</button></div>
   </>;
   return <div className="chat-shell">
@@ -253,7 +257,7 @@ export default function Chat() {
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
           <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || '可附加 CSV、TSV、XLSX（≤ 2 MB）'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
-        </form><p className="chat-footnote">表格在本站分析服务中处理，模型只接收必要的数据预览。Enter 发送，Shift + Enter 换行。</p>
+        </form><p className="chat-footnote">{desktop ? '表格在本机检查，对话时模型会收到必要的数据预览。' : '表格在本站分析服务中处理，模型只接收必要的数据预览。'}Enter 发送，Shift + Enter 换行。</p>
       </div>
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>
       </section>
@@ -282,8 +286,8 @@ export default function Chat() {
         <label className="field"><span>模型 ID</span><input list="provider-models" value={model} onChange={event => setModel(event.target.value)} placeholder={providers[provider].model} required/><datalist id="provider-models">{providers[provider].models.map(name=><option key={name} value={name}/>)}</datalist></label>
         {provider==='qwen'&&<label className="field"><span>业务空间 ID（可选）</span><input value={workspace} onChange={event=>setWorkspace(event.target.value)} placeholder="llm-…"/></label>}
         <p className="model-storage-note">{providers[provider].note}</p>
-        <label className="remember-key"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/>在此浏览器记住 API Key</label>
-        <p className="model-storage-note">未勾选时，密钥仅保留在当前标签会话。密钥经本站 API 转发至所选官方平台，本站不持久保存密钥。模型接收对话与必要数据预览；表格在本站分析服务临时处理。</p>
+        <label className="remember-key"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/>在{storageLocation}记住 API Key</label>
+        <p className="model-storage-note">{desktop ? '桌面应用直接连接所选模型平台。模型会收到对话和必要的数据预览，原始表格留在本机。勾选后，密钥保存在本机。关闭窗口会清除未勾选的密钥。' : '未勾选时，密钥仅保留在当前标签会话。密钥经本站 API 转发至所选官方平台，本站不持久保存密钥。模型接收对话与必要数据预览；表格在本站分析服务临时处理。'}</p>
         {error && <p className="model-error" role="alert">{error}</p>}
         <button className="button primary full-width" type="submit">保存设置</button>
       </form>

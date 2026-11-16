@@ -1,6 +1,19 @@
 # bioinfobuddy
 
-面向大学生和科研人员的生信对话与案例学习工具。从首页进入工作台，配置国内模型 API 后即可对话，无需安装客户端或配对服务。
+面向大学生和科研人员的生信对话与案例学习工具。桌面客户端内置工作台、教程与案例资源，可在本机导入表格。网页版从首页进入工作台。两端均可配置国内模型 API 进行对话。
+
+## 桌面安装包
+
+本仓库维护 Agent、桌面客户端和安装包。构建机使用 Apple Silicon Mac、Node.js 22.18+（22.x）或 24.2+、Python 3.9+，并可调用系统的 `codesign` 和 `hdiutil`。Windows 安装器采用 NSIS 3.13。macOS 26 上脚本会自动获取该版本，其他构建主机需先安装 NSIS 3.13。首次构建会下载 Electron 45.3.3 并核对 SHA-256。
+
+```bash
+npm ci --ignore-scripts
+npm run test:desktop
+npm run build:desktop-web
+npm run package:desktop
+```
+
+`release/` 下的 `BioInfoBuddy-<版本>-macOS-arm64.dmg` 适用于 macOS 13 及以上 Apple Silicon，可将应用拖入 Applications。`BioInfoBuddy-<版本>-Windows-x64-Setup.exe` 适用于 64 位 Windows 10 及以上，安装在当前用户目录，并加入开始菜单与系统卸载列表。打包命令会输出两份文件的 SHA-256。独立官网仓库负责发布页面与下载，在官网仓库内运行 `npm run stage:release -- "<本仓库的绝对路径>/release"` 即可登记两个文件的版本、大小和校验值。
 
 ## 功能
 

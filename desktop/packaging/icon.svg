@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- DNA mark from Lucide, distributed under ISC. -->
+  <rect x="40" y="40" width="944" height="944" rx="212" fill="#4f46d6"/>
+  <g transform="translate(176 176) scale(28)" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m10 16 1.5 1.5m2.5-9.5-1.5-1.5M15 2c-1.798 1.998-2.518 3.995-2.807 5.993m4.307 2.507 1 1M17 6l-2.891-2.891M2 15c6.667-6 13.333 0 20-6m-2 0 .891.891M3.109 14.109 4 15m2.5-2.5 1 1M7 18l2.891 2.891M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/>
+  </g>
+</svg>

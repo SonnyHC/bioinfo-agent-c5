@@ -4,6 +4,6 @@ export async function requestModel(settings: ModelSettings, messages: Message[],
   const response = await fetch('/api/chat', {method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({apiKey:settings.key,model:settings.model,provider:settings.provider,workspace:settings.workspace,messages,tools}),signal});
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.message) throw new Error(data.error || `模型请求失败（${response.status}），请检查网站 API 服务。`);
+  if (!response.ok || !data.message) throw new Error(data.error || `模型请求失败（${response.status}），请检查模型连接。`);
   return {...data.message,provider:settings.provider,model:settings.model};
 }

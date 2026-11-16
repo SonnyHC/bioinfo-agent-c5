@@ -72,7 +72,7 @@ export default function SkillStore({onUse, agentBusy}: {onUse: (skill: AnalysisS
       <header className="skill-heading"><div><h1 id="skill-store-heading">数据分析技能</h1><p>技能是预先写好的分析流程。添加后，模型会按流程检查数据、调用工具并核对结果。</p></div></header>
       <div className="skill-shelves" aria-label="技能列表范围"><button aria-pressed={shelf === 'all'} onClick={() => setShelf('all')}>浏览技能<span>{skillCatalog.length}</span></button><button aria-pressed={shelf === 'mine'} onClick={() => setShelf('mine')}>我的技能<span>{loading ? '…' : records.length}</span></button></div>
       <div className="skill-filters"><label className="skill-search"><Search size={18}/><input type="search" aria-label="搜索技能" placeholder="搜索技能名称、用途或文件类型" value={query} onChange={event => setQuery(event.target.value)}/>{query && <button aria-label="清除搜索" onClick={() => setQuery('')}><X size={16}/></button>}</label><div className="skill-categories" aria-label="技能分类">{categories.map(item => <button key={item} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</div></div>
-      <div className="skill-list-note"><span>{loading ? '正在读取我的技能…' : `${filtered.length} 项技能`}</span><span>均为内置技能，添加记录保存在此浏览器</span></div>
+      <div className="skill-list-note"><span>{loading ? '正在读取我的技能…' : `${filtered.length} 项技能`}</span><span>均为内置技能，添加记录保存在本机</span></div>
       {error && <p className="skill-error" role="alert">{error}</p>}
       {agentBusy && <p className="skill-feedback">AI 正在回复，完成后可添加、停用或使用技能。</p>}
       <p className="skill-feedback" role="status">{message}</p>

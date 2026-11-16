@@ -11,6 +11,9 @@
     "dev": "node scripts/web-dev.mjs",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
+    "build:desktop-web": "vite build --config web/vite.config.ts --mode desktop",
+    "package:desktop": "python3 scripts/package-desktop.py",
+    "test:desktop": "node --test tests/desktop-*.test.mjs",
     "start": "node scripts/web-dev.mjs --production",
     "dev:cloud": "node scripts/web-dev.mjs --analysis",
     "start:cloud": "node scripts/web-dev.mjs --analysis --production",
@@ -37,6 +40,7 @@
     "multer": "2.5.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "saxes": "6.0.0",
     "three": "0.187.0",
     "zod": "4.6.7"
   },
@@ -50,6 +54,7 @@
     "@types/react-dom": "19.2.2",
     "fake-indexeddb": "6.2.4",
     "pnpm": "10.28.0",
+    "resedit": "3.1.1",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
     "vite": "7.2.2"

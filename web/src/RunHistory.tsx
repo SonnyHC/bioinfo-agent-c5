@@ -51,7 +51,7 @@ export default function RunHistory({initialRunId}: {initialRunId?: string}) {
   return <section className="run-archive" aria-label="运行记录">
     <header className="run-archive-heading"><div><h1>运行记录</h1><p>查看此前保存的结果与输出文件。</p></div><button className="button" disabled={loading || detailLoading} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={15}/>刷新记录</button></header>
     {error && <p role="alert" className="run-archive-error">{error}</p>}
-    {loading ? <p role="status" className="run-archive-status">正在读取运行记录…</p> : error && !selectedId ? null : !runs.length && !selectedId ? <div className="run-archive-empty"><Clock3 size={30}/><h2>暂无运行记录</h2><p>此浏览器中尚未保存分析结果。</p></div> : <div className="run-archive-layout">
+    {loading ? <p role="status" className="run-archive-status">正在读取运行记录…</p> : error && !selectedId ? null : !runs.length && !selectedId ? <div className="run-archive-empty"><Clock3 size={30}/><h2>暂无运行记录</h2><p>本机尚未保存分析结果。</p></div> : <div className="run-archive-layout">
       <nav className="run-archive-list" aria-label="已保存的运行记录">
         <p className="run-archive-count">共 {runs.length} 条</p>
         {runs.map(run => <button key={run.id} aria-pressed={selectedId === run.id} onClick={() => setSelectedId(run.id)}>
