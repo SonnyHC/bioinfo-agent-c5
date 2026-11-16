@@ -21,6 +21,16 @@ const SkillStore = lazy(() => import('./SkillStore'));
 const OmicsResources = lazy(() => import('./OmicsResources'));
 const Environments = lazy(() => import('./Environments'));
 
+const primaryNavigation = [
+  { id: 'chat', icon: MessageSquare },
+  { id: 'skills', icon: Package },
+  { id: 'omics', icon: Database },
+  { id: 'tutorial', icon: BookOpen },
+  { id: 'environments', icon: Terminal },
+  { id: 'genomes', icon: Dna },
+  { id: 'history', icon: History },
+] as const;
+
 interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[]; skillId?: string }
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
 interface ChatDataset {id:string; name:string}
@@ -213,8 +223,11 @@ export default function Chat() {
     <a href="/" className="chat-brand" aria-label="返回 BioInfoBuddy 启动页"><Dna size={24}/><strong>BioinfoBuddy</strong></a>
     <button className="button new-chat" disabled={busy || loading} onClick={newChat}><Plus size={17}/>新对话</button>
     <nav className="chat-primary-nav" aria-label="主要功能">
-      {([{id:'chat',icon:MessageSquare},{id:'omics',icon:Database},{id:'environments',icon:Terminal},{id:'skills',icon:Package},{id:'history',icon:History},{id:'tutorial',icon:BookOpen}] as const).map(({id,icon:Icon})=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={17}/><span>{viewLabels[id]}</span></button>)}
-      <button className={view==='genomes'?'active':''} aria-current={view==='genomes'?'page':undefined} onClick={()=>navigate('genomes')}><Dna size={17}/><span>参考基因组</span></button>
+      {primaryNavigation.map(({ id, icon: Icon }) => (
+        <button key={id} className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>
+          <Icon size={17}/><span>{viewLabels[id]}</span>
+        </button>
+      ))}
     </nav>
     <span className="chat-section-label">最近对话</span>
     <nav className="chat-history" aria-label="最近对话">{history.map(item=><button key={item.id} disabled={busy} className={view==='chat'&&item.id===conversation.id?'active':''} onClick={()=>{setConversation(item);setError('');navigate('chat');}} title={item.title}><MessageSquare size={15}/><span>{item.title}</span></button>)}{!history.length&&<p>暂无对话。对话记录保存在此浏览器。</p>}</nav>

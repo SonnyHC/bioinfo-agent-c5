@@ -46,7 +46,7 @@ export default function Launch() {
   const unavailable = state === 'loading' || state === 'unsupported';
   return <div className="launch" data-theme={theme}>
     <header className="launch-header">
-      <a href="/" className="launch-brand" aria-label="BioInfoBuddy 首页"><Dna size={27} strokeWidth={1.5}/><span>BioinfoBuddy<span className="launch-brand-dot">.</span></span></a>
+      <a href="/" className="launch-brand" aria-label="BioInfoBuddy 首页"><Dna size={27}/><span>BioinfoBuddy<span className="launch-brand-dot">.</span></span></a>
       <div className="launch-header-actions"><button onClick={()=>setTheme(theme==='light'?'dark':'light')} aria-label={theme==='light'?'切换深色':'切换浅色'}>{theme==='light'?<Moon size={18}/>:<Sun size={18}/>}</button></div>
     </header>
     <main>
