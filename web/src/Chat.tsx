@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Terminal, Upload, X } from 'lucide-react';
 import { api, importDataset } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
@@ -33,14 +33,25 @@ const primaryNavigation = [
   { id: 'history', icon: History },
 ] as const;
 
-interface Conversation { id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[]; skillId?: string }
+interface ReplyNotice { state: 'stopped' | 'error'; text: string }
+interface Conversation {
+  id: string; title: string; createdAt: string; messages: Message[]; events: ToolEvent[]; skillId?: string;
+  awaitingReply?: boolean;
+  // User turn numbers stay stable when interrupted tool calls are recovered.
+  replyNotices?: Record<number, ReplyNotice>;
+}
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
 interface ChatDataset {id:string; name:string}
+function finishWithNotice(chat: Conversation, notice: ReplyNotice): Conversation {
+  const turn = chat.messages.filter(message => message.role === 'user').length;
+  return { ...chat, awaitingReply: false, replyNotices: { ...chat.replyNotices, [turn]: notice } };
+}
 function recover(previous: Conversation): Conversation {
   const messages = recoverToolCalls(previous.messages);
   const selected = previous.skillId === 'cell-annotation-evidence' ? 'cell-annotation-review' : previous.skillId;
   const skillId = skillCatalog.some(skill => skill.id === selected) ? selected : undefined;
-  return { ...previous, skillId, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
+  const recovered: Conversation = { ...previous, skillId, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
+  return previous.awaitingReply ? finishWithNotice(recovered, { state: 'stopped', text: '上次回复已中断，可以继续对话。' }) : recovered;
 }
 
 const examplePrompts = [
@@ -82,11 +93,12 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [progress, setProgress] = useState('');
+  const [uploading, setUploading] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const messageScroll = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
   const started = useRef(false);
 
   function showRoute(path: string, push = true) {
@@ -155,19 +167,16 @@ export default function Chat() {
     if (settings && !dialog.current?.open) dialog.current?.showModal();
     if (!settings && dialog.current?.open) dialog.current.close();
   }, [settings]);
-  useEffect(() => {
+  useLayoutEffect(() => { followLatest.current = true; }, [conversation.id, view]);
+  useLayoutEffect(() => {
     const scroll = messageScroll.current;
-    if (view !== 'chat' || !scroll) return;
-    scroll.scrollTo({
-      top: conversation.messages.length ? scroll.scrollHeight : 0,
-      behavior: conversation.messages.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant',
-    });
-  }, [conversation.id, conversation.messages.length, progress, view]);
+    if (view === 'chat' && scroll && followLatest.current) scroll.scrollTop = scroll.scrollHeight;
+  }, [conversation, view]);
 
   async function persist(next: Conversation) {
-    await save('chats', next);
-    setConversation({ ...next });
+    setConversation(previous => previous.id === next.id ? next : previous);
     setHistory(previous => [next, ...previous.filter(item => item.id !== next.id)]);
+    await save('chats', next);
   }
   function saveSettings() {
     try {
@@ -180,15 +189,23 @@ export default function Chat() {
     if (!prompt || started.current || loading) return;
     if (!apiKey) { openSettings(); return; }
     started.current = true; setBusy(true); setError(''); setInput('');
+    followLatest.current = true;
     abort.current = new AbortController();
     const signal = abort.current.signal;
-    let current = { ...conversation, messages: [...conversation.messages, { role: 'user', content: prompt } as Message], title: conversation.messages.length ? conversation.title : prompt.slice(0, 28) };
+    let current: Conversation = { ...conversation, awaitingReply: true, messages: [...conversation.messages, { role: 'user', content: prompt }], title: conversation.messages.length ? conversation.title : prompt.slice(0, 28) };
+    const stopped: ReplyNotice = { state: 'stopped', text: '已停止，可以继续对话。' };
+    const onStop = () => {
+      current = finishWithNotice(current, stopped);
+      // Reflect Stop even if the pending tool or local save takes time to finish.
+      // The catch below saves the settled tool results and reports storage errors.
+      void persist(current).catch(() => {});
+    };
+    signal.addEventListener('abort', onStop, { once: true });
     try {
       await persist(current);
       await runAgent({
         messages: current.messages, fileContents: transcript.fileContents, signal,
         request: async messages => {
-          setProgress('正在分析');
           const workflows = await skillPrompt(current.skillId);
           const names = Object.keys(transcript.fileContents);
           const fileContext = names.length ? `\n本轮开始前已保存在对话里的脚本文件名：${JSON.stringify(names)}` : '';
@@ -197,29 +214,32 @@ export default function Chat() {
         execute: (name, args) => executeTool(name, args, signal),
         changed: async (messages, event) => {
           const events = event ? [...current.events.filter(item => item.id !== event.id), { ...event }] : current.events;
-          current = { ...current, messages, events };
-          if (event) setProgress(event.file ? '' : `${toolLabels[event.name] || event.name}${event.state === 'running' ? '…' : event.state === 'done' ? ' · 完成' : ' · 需处理'}`);
+          current = { ...current, messages, events, awaitingReply: Boolean(event) && !signal.aborted };
           await persist(current);
         },
       });
-      await refreshData();
+      await refreshData().catch(reason => setError(reason instanceof Error ? reason.message : '刷新数据列表失败。'));
     } catch (reason) {
-      setConversation(previous => previous.id === current.id ? recover(previous) : previous);
-      setHistory(previous => previous.map(item => item.id === current.id ? recover(item) : item));
-      setError(signal.aborted ? '已停止，可以继续对话。' : reason instanceof Error ? reason.message : '本次请求未完成。');
+      const text = reason instanceof Error ? reason.message : '本次请求未完成。';
+      if (current.awaitingReply || signal.aborted) {
+        current = recover(finishWithNotice(current, signal.aborted ? stopped : { state: 'error', text }));
+        await persist(current).catch(saveError => {
+          if (saveError instanceof Error && saveError.message !== text) setError(saveError.message);
+        });
+      } else setError(text);
     }
-    finally { started.current = false; setBusy(false); setProgress(''); abort.current = null; }
+    finally { signal.removeEventListener('abort', onStop); started.current = false; setBusy(false); abort.current = null; }
   }
   async function upload(selected: File) {
     if (started.current) return;
-    started.current = true; setBusy(true); setProgress('正在读取数据'); setError('');
+    started.current = true; setBusy(true); setUploading(true); setError('');
     try {
       const imported = await importDataset(selected);
       setSelectedDataset(imported); await refreshData();
       await selectForChat(imported.id);
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : '导入失败。'); }
-    finally { started.current = false; setBusy(false); setProgress(''); }
+    finally { started.current = false; setBusy(false); setUploading(false); }
   }
   function exportChat() {
     const blob = new Blob([JSON.stringify(conversation, null, 2)], { type: 'application/json' });
@@ -228,6 +248,9 @@ export default function Chat() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  const latestEvent = conversation.events.at(-1);
+  const runningTool = conversation.awaitingReply && latestEvent?.state === 'running' ? latestEvent : undefined;
+  let turn = 0;
   const navigation = <>
     <a href="/" className="chat-brand" aria-label={desktop ? '返回 AI 对话' : '返回 BioInfoBuddy 启动页'} onClick={event => {
       if (desktop) { event.preventDefault(); navigate('chat'); }
@@ -250,12 +273,19 @@ export default function Chat() {
     <main className="chat-main">
       <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'&&conversation.messages.length?conversation.title:viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
       <section className="chat-conversation" hidden={view!=='chat'} aria-label="AI 对话">
-      <div ref={messageScroll} className={`chat-scroll${conversation.messages.length ? '' : ' chat-scroll-empty'}`}>
+      <div ref={messageScroll} className={`chat-scroll${conversation.messages.length ? '' : ' chat-scroll-empty'}`} onScroll={event => {
+        const scroll = event.currentTarget;
+        followLatest.current = scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 48;
+      }}>
         {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => setExamplePicker(true)}><Database size={17}/>选择附件样例</button></div><div className="chat-examples"><span>可以这样问</span>{examplePrompts.map(prompt=><button key={prompt} disabled={busy||loading} onClick={()=>setInput(prompt)}>{prompt}</button>)}</div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => {
+          if (message.role === 'user') turn++;
+          const next = conversation.messages[index + 1];
+          const notice = !next || next.role === 'user' ? conversation.replyNotices?.[turn] : undefined;
+          const waiting = !next && conversation.awaitingReply && !runningTool?.file;
           const parts = message.role === 'user' ? messageParts(message.content ?? '') : transcript.prose.get(index) ?? [];
           const calls = message.tool_calls?.filter(call => {
             const event = transcript.byId.get(call.id);
-            return event && (!event.file || event.state === 'error');
+            return event && event.state !== 'running' && (!event.file || event.state === 'error');
           }) ?? [];
           const archived = transcript.archived.get(index);
           return <Fragment key={index}>
@@ -265,7 +295,7 @@ export default function Chat() {
                 {calls.map(call => {
                   const event = transcript.byId.get(call.id)!;
                   return <div className="tool-step" key={call.id}>
-                    {event.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}
+                    {event.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}
                     <span>{toolLabels[call.function.name] || call.function.name}{event.detail && ` · ${event.detail}`}</span>
                     {event.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}
                   </div>;
@@ -273,6 +303,12 @@ export default function Chat() {
               </div>
             </div>}
             {archived && <ChatFiles files={archived}/>}
+            {(waiting || notice) && <div className={`chat-message assistant chat-reply-status${notice?.state === 'error' ? ' failed' : ''}`} role={notice?.state === 'error' ? 'alert' : 'status'}>
+              <Dna className="chat-avatar" size={22} aria-hidden="true"/>
+              <span>{waiting && <LoaderCircle className="spinning" size={15} aria-hidden="true"/>}
+                {notice?.text ?? (runningTool ? `正在运行 · ${toolLabels[runningTool.name] || runningTool.name}` : '正在思考…')}
+              </span>
+            </div>}
           </Fragment>;
         })}</div>}
       </div>
@@ -284,7 +320,7 @@ export default function Chat() {
         <ChatFiles key={conversation.id} files={transcript.latest}/>
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
-          <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || '可附加 CSV、TSV、XLSX（≤ 2 MB）'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
+          <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{uploading ? '正在读取数据' : '可附加 CSV、TSV、XLSX（≤ 2 MB）'}</span></div>{busy && conversation.awaitingReply ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>
         </form><p className="chat-footnote">{desktop ? '表格在本机检查，对话时模型会收到必要的数据预览。' : '表格在本站分析服务中处理，模型只接收必要的数据预览。'}Enter 发送，Shift + Enter 换行。</p>
       </div>
       <input ref={file} type="file" accept=".csv,.tsv,.xlsx" className="sr-only" aria-label="选择分析数据" onChange={event => { const selected = event.target.files?.[0]; if (selected) void upload(selected); event.target.value = ''; }}/>

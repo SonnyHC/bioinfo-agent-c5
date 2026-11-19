@@ -1,6 +1,6 @@
 {
   "name": "bioinfobuddy",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "通过国内模型 API 进行生信对话与网页科研绘图",
