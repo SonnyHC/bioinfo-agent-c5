@@ -42,6 +42,25 @@
 
 .chat-shell{font-family:'Avenir Next','PingFang SC','Microsoft YaHei',sans-serif}.chat-shell .new-chat{border-radius:8px;font-size:12px;padding:8px 12px;gap:8px}
 
+.chat-file-list{display:grid;gap:3px;max-height:18dvh;overflow:auto;overscroll-behavior:contain}
+.chat-compose-area>.chat-files{margin:0 3px 8px}
+.chat-file-row{display:flex;align-items:center;width:100%;min-height:36px;gap:8px;padding:6px 10px;border-radius:7px;color:var(--ink-secondary);font-size:12px;text-align:left}
+.chat-file-row:hover,.chat-file-row:focus-visible{background:var(--inset);color:var(--ink)}
+.chat-file-row>svg,.chat-file-row>span{flex-shrink:0}
+.chat-file-row>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:550}
+.chat-file-count{font:12px var(--font-data);font-variant-numeric:tabular-nums}
+.chat-file-count.added{color:#19714e;margin-left:auto}
+.chat-file-count.removed{color:var(--danger)}
+.chat-file-dialog{width:min(760px,calc(100% - 28px));max-height:82dvh;max-width:none;padding:0;border:1px solid var(--rule);border-radius:14px;background:var(--sheet);color:var(--ink);box-shadow:var(--dialog-shadow)}
+.chat-file-dialog[open]{display:flex;flex-direction:column}
+.chat-file-dialog::backdrop{background:var(--dialog-backdrop)}
+.chat-file-dialog>header{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--rule)}
+.chat-file-dialog>header>svg{flex-shrink:0;color:var(--accent)}
+.chat-file-dialog h2{flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere}
+.chat-file-download{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:13px;min-height:32px}
+.chat-file-dialog pre{overflow:auto;overscroll-behavior:contain;margin:0;padding:18px 20px;text-align:left;white-space:pre;tab-size:4;color:var(--ink);font:13px/1.7 var(--font-data)}
+.chat-file-dialog code{font:inherit}
+
 /* Keep the welcome screen in the space above the fixed composer. */
 .chat-scroll-empty{display:flex;align-items:center;overflow:clip;container:chat-welcome / size}
 @container chat-welcome (max-height:440px){

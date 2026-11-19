@@ -41,7 +41,10 @@ export default defineConfig(({ mode }) => ({
       '/api/chat': 'http://127.0.0.1:4320',
     },
   },
-  build: mode === 'desktop'
-    ? { outDir: '../dist/desktop-client', emptyOutDir: true, rollupOptions: { input: desktopPage } }
-    : { outDir: '../dist/client', emptyOutDir: true },
+  build: {
+    outDir: mode === 'desktop' ? '../dist/desktop-client' : '../dist/client',
+    emptyOutDir: true,
+    rollupOptions: mode === 'desktop' ? { input: desktopPage } : undefined,
+    license: { fileName: 'third-party-licenses.md' },
+  },
 }));

@@ -3,6 +3,7 @@
 const { createHash } = require('node:crypto');
 const { extname } = require('node:path');
 const { readWorksheet } = require('./worksheet.cjs');
+const { version } = require('../package.json');
 
 const MAX_FILE = 2 * 1024 * 1024;
 const MAX_ROWS = 50_000;
@@ -114,7 +115,7 @@ function readDelimited(raw, suffix, warnings, add) {
 function inspectRequest(body) {
   try {
     if (!body || typeof body !== 'object' || Array.isArray(body)) fail('请求必须是 JSON 对象。');
-    if (body.action === 'status') return { status: 200, data: { version: '0.3.0', mode: 'desktop', maxUploadMB: 2, pythonReady: false } };
+    if (body.action === 'status') return { status: 200, data: { version, mode: 'desktop', maxUploadMB: 2, pythonReady: false } };
     if (body.action !== 'inspect') fail('未知的分析操作。');
     if (typeof body.name !== 'string' || Array.from(body.name).length > 250) fail('文件名无效。');
     const suffix = extname(body.name).toLowerCase();

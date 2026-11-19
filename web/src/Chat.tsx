@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUp, ArrowUpRight, BookOpen, Check, Database, Dna, Download, History, LoaderCircle, Menu, MessageSquare, Package, Plus, Settings2, Square, Terminal, Upload, X } from 'lucide-react';
 import { api, importDataset } from './api';
 import { providers, PROVIDER, savedSettings, storeSettings, type Provider, type ModelSettings } from './model-settings';
@@ -11,6 +11,8 @@ import { skillCatalog, type AnalysisSkill } from './skill-catalog';
 import { skillPrompt } from './skill-library';
 
 import RunHistory from './RunHistory';
+import ChatFiles from './ChatFiles';
+import { chatTranscript, recoverToolCalls } from './chat-transcript';
 import V1ExamplePicker from './V1ExamplePicker';
 import Tutorial from './Tutorial';
 import { appRoute, messageParts, safeAppLink, viewLabels } from './navigation';
@@ -35,9 +37,7 @@ interface Conversation { id: string; title: string; createdAt: string; messages:
 const fresh = (): Conversation => ({ id: crypto.randomUUID(), title: '新对话', createdAt: new Date().toISOString(), messages: [], events: [] });
 interface ChatDataset {id:string; name:string}
 function recover(previous: Conversation): Conversation {
-  const messages = [...previous.messages];
-  const incomplete = messages.findIndex((m, i) => m.tool_calls?.some(call => !messages.slice(i + 1).some(item => item.role === 'tool' && item.tool_call_id === call.id)));
-  if (incomplete >= 0) messages.splice(incomplete);
+  const messages = recoverToolCalls(previous.messages);
   const selected = previous.skillId === 'cell-annotation-evidence' ? 'cell-annotation-review' : previous.skillId;
   const skillId = skillCatalog.some(skill => skill.id === selected) ? selected : undefined;
   return { ...previous, skillId, messages, events: previous.events.map(event => event.state === 'running' ? { ...event, state: 'error', detail: '上次操作已中断' } : event) };
@@ -49,8 +49,8 @@ const examplePrompts = [
   '两组样本量都只有 3 个，箱线图上还适合做 t 检验吗？',
 ];
 
-function MessageText({ text, onOpen }: { text: string; onOpen: (href:string)=>void }) {
-  return <div className="chat-message-text">{messageParts(text).map((part,index) => part.href ? <a key={index} href={part.href} onClick={event=>{if(!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey){event.preventDefault();onOpen(part.href!);}}}>{part.text} ↗</a> : <span key={index}>{part.text}</span>)}</div>;
+function MessageText({ parts, onOpen }: { parts: ReturnType<typeof messageParts>; onOpen: (href:string)=>void }) {
+  return <div className="chat-message-text">{parts.map((part,index) => part.href ? <a key={index} href={part.href} onClick={event=>{if(!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey){event.preventDefault();onOpen(part.href!);}}}>{part.text} ↗</a> : <span key={index}>{part.text}</span>)}</div>;
 }
 
 export default function Chat() {
@@ -60,6 +60,7 @@ export default function Chat() {
   const [view, setView] = useState<MainView>(initialRoute.view);
   const mobileNavigation = useRef<HTMLDialogElement>(null);
   const [conversation, setConversation] = useState<Conversation>(fresh);
+  const transcript = useMemo(() => chatTranscript(conversation.messages, conversation.events), [conversation.messages, conversation.events]);
   const [history, setHistory] = useState<Conversation[]>([]);
   const [datasets, setDatasets] = useState<ChatDataset[]>([]);
   const [input, setInput] = useState('');
@@ -164,8 +165,8 @@ export default function Chat() {
   }, [conversation.id, conversation.messages.length, progress, view]);
 
   async function persist(next: Conversation) {
-    setConversation({ ...next });
     await save('chats', next);
+    setConversation({ ...next });
     setHistory(previous => [next, ...previous.filter(item => item.id !== next.id)]);
   }
   function saveSettings() {
@@ -185,22 +186,28 @@ export default function Chat() {
     try {
       await persist(current);
       await runAgent({
-        messages: current.messages, signal,
+        messages: current.messages, fileContents: transcript.fileContents, signal,
         request: async messages => {
           setProgress('正在分析');
           const workflows = await skillPrompt(current.skillId);
-          return requestModel(activeSettings.current, [{role:'system',content:`${systemPrompt}\n${workflows}`},...messages], toolDefinitions, signal);
+          const names = Object.keys(transcript.fileContents);
+          const fileContext = names.length ? `\n本轮开始前已保存在对话里的脚本文件名：${JSON.stringify(names)}` : '';
+          return requestModel(activeSettings.current, [{role:'system',content:`${systemPrompt}\n${workflows}${fileContext}`},...messages], toolDefinitions, signal);
         },
         execute: (name, args) => executeTool(name, args, signal),
         changed: async (messages, event) => {
           const events = event ? [...current.events.filter(item => item.id !== event.id), { ...event }] : current.events;
           current = { ...current, messages, events };
-          if (event) setProgress(`${toolLabels[event.name] || event.name}${event.state === 'running' ? '…' : event.state === 'done' ? ' · 完成' : ' · 需处理'}`);
+          if (event) setProgress(event.file ? '' : `${toolLabels[event.name] || event.name}${event.state === 'running' ? '…' : event.state === 'done' ? ' · 完成' : ' · 需处理'}`);
           await persist(current);
         },
       });
       await refreshData();
-    } catch (reason) { setError(signal.aborted ? '已停止，可以继续对话。' : reason instanceof Error ? reason.message : '本次请求未完成。'); }
+    } catch (reason) {
+      setConversation(previous => previous.id === current.id ? recover(previous) : previous);
+      setHistory(previous => previous.map(item => item.id === current.id ? recover(item) : item));
+      setError(signal.aborted ? '已停止，可以继续对话。' : reason instanceof Error ? reason.message : '本次请求未完成。');
+    }
     finally { started.current = false; setBusy(false); setProgress(''); abort.current = null; }
   }
   async function upload(selected: File) {
@@ -244,16 +251,37 @@ export default function Chat() {
       <header className="chat-header"><button className="icon-button chat-menu" aria-label="打开导航菜单" onClick={()=>mobileNavigation.current?.showModal()}><Menu size={20}/></button><span>{view==='chat'&&conversation.messages.length?conversation.title:viewLabels[view]}</span><div><button className="chat-model" disabled={busy} onClick={openSettings}>{model}<Settings2 size={13}/></button>{view==='chat'&&<button className="icon-button" aria-label="导出当前对话" disabled={!conversation.messages.length} onClick={exportChat}><Download size={16}/></button>}</div></header>
       <section className="chat-conversation" hidden={view!=='chat'} aria-label="AI 对话">
       <div ref={messageScroll} className={`chat-scroll${conversation.messages.length ? '' : ' chat-scroll-empty'}`}>
-        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => setExamplePicker(true)}><Database size={17}/>选择附件样例</button></div><div className="chat-examples"><span>可以这样问</span>{examplePrompts.map(prompt=><button key={prompt} disabled={busy||loading} onClick={()=>setInput(prompt)}>{prompt}</button>)}</div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => message.role === 'tool' || message.role === 'system' ? null : <div key={index} className={`chat-message ${message.role}`}>
-          {message.role === 'assistant' && <Dna className="chat-avatar" size={22}/>}
-          <div>{message.content && <MessageText text={message.content} onOpen={showRoute}/>}{message.tool_calls?.map(call => { const event = conversation.events.find(item => item.id === call.id); return <div className="tool-step" key={call.id}>{event?.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event?.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}<span>{toolLabels[call.function.name] || call.function.name}{event?.detail && ` · ${event.detail}`}</span>{event?.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}</div>; })}</div>
-        </div>)}</div>}
+        {!conversation.messages.length ? <section className="chat-welcome"><div className="chat-welcome-mark"><Dna size={38} strokeWidth={1.4}/></div><h1>开始生信分析</h1><div className="chat-starters"><button disabled={busy || loading} onClick={() => file.current?.click()}><Upload size={17}/>导入实验数据</button><button disabled={busy || loading} onClick={() => setExamplePicker(true)}><Database size={17}/>选择附件样例</button></div><div className="chat-examples"><span>可以这样问</span>{examplePrompts.map(prompt=><button key={prompt} disabled={busy||loading} onClick={()=>setInput(prompt)}>{prompt}</button>)}</div></section> : <div className="chat-transcript">{conversation.messages.map((message, index) => {
+          const parts = message.role === 'user' ? messageParts(message.content ?? '') : transcript.prose.get(index) ?? [];
+          const calls = message.tool_calls?.filter(call => {
+            const event = transcript.byId.get(call.id);
+            return event && (!event.file || event.state === 'error');
+          }) ?? [];
+          const archived = transcript.archived.get(index);
+          return <Fragment key={index}>
+            {(parts.length > 0 || calls.length > 0) && <div className={`chat-message ${message.role}`}>
+              {message.role === 'assistant' && <Dna className="chat-avatar" size={22}/>}
+              <div>{parts.length > 0 && <MessageText parts={parts} onOpen={showRoute}/>}
+                {calls.map(call => {
+                  const event = transcript.byId.get(call.id)!;
+                  return <div className="tool-step" key={call.id}>
+                    {event.state === 'running' ? <LoaderCircle className="spinning" size={14}/> : event.state === 'done' ? <Check size={14}/> : <Settings2 size={14}/>}
+                    <span>{toolLabels[call.function.name] || call.function.name}{event.detail && ` · ${event.detail}`}</span>
+                    {event.url && safeAppLink(event.url) && <a href={safeAppLink(event.url)} onClick={e=>{e.preventDefault();showRoute(event.url!);}}>打开<ArrowUpRight size={12}/></a>}
+                  </div>;
+                })}
+              </div>
+            </div>}
+            {archived && <ChatFiles files={archived}/>}
+          </Fragment>;
+        })}</div>}
       </div>
       <div className="chat-compose-area">
         {!apiKey && <div className="chat-connection"><span>尚未配置模型 API，对话功能暂不可用；案例和其他页面不受影响。</span><button className="text-link" onClick={openSettings}>配置模型 API</button></div>}
         {error && <div className="chat-error" role="alert"><span>{error}</span><button className="icon-button" aria-label="关闭提示" onClick={() => setError('')}><X size={15}/></button></div>}
         {conversation.skillId && <div className="chat-skill-strip"><Package size={14}/><span>本轮技能：{skillCatalog.find(skill => skill.id === conversation.skillId)?.name ?? conversation.skillId}</span><button disabled={busy} onClick={()=>navigate('skills')}>管理技能</button><button disabled={busy} aria-label="取消本轮指定技能" onClick={()=>{const next = {...conversation,skillId:undefined};if(next.messages.length)void persist(next).catch(reason=>setError(String(reason.message)));else setConversation(next);}}>取消指定<X size={12}/></button></div>}
         {!!datasets.length && <div className="chat-data-strip"><Database size={13}/><span>{selectedDataset ? '当前数据：' : `已导入 ${datasets.length} 份数据，最近：`}</span><a href={`/?view=chat&dataset=${(selectedDataset||datasets[0]).id}`} onClick={event=>{event.preventDefault();void selectForChat((selectedDataset||datasets[0]).id);}} title={(selectedDataset||datasets[0]).name}>{(selectedDataset||datasets[0]).name}</a></div>}
+        <ChatFiles key={conversation.id} files={transcript.latest}/>
         <form className="chat-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea aria-label="分析要求" placeholder="描述你的数据或分析需求…" value={input} onChange={event => setInput(event.target.value)} maxLength={12000} disabled={loading} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/>
           <div className="chat-compose-actions"><div><button type="button" className="icon-button" aria-label="导入数据文件" disabled={busy || loading} onClick={() => file.current?.click()}><Plus size={20}/></button><span aria-live="polite">{progress || '可附加 CSV、TSV、XLSX（≤ 2 MB）'}</span></div>{busy && abort.current ? <button type="button" className="chat-send" aria-label="停止生成" onClick={() => abort.current?.abort()}><Square size={15}/></button> : <button type="submit" className="chat-send" aria-label="发送" disabled={busy || loading || !input.trim()}><ArrowUp size={19}/></button>}</div>

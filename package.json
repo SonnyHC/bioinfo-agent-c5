@@ -1,6 +1,6 @@
 {
   "name": "bioinfobuddy",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "通过国内模型 API 进行生信对话与网页科研绘图",
@@ -27,16 +27,18 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "dev:legacy": "tsx watch src/server.ts",
     "build:legacy": "tsc -p tsconfig.json",
-    "test:cloud": "node --import tsx --test tests/cloud.test.ts tests/model-api.test.ts tests/reference-genomes.test.ts tests/skills.test.ts tests/omics.test.ts tests/v1-examples.test.ts tests/guide-markdown.test.ts tests/tutorial-content.test.ts",
+    "test:cloud": "node --import tsx --test tests/cloud.test.ts tests/chat-text.test.ts tests/chat-transcript.test.ts tests/model-api.test.ts tests/reference-genomes.test.ts tests/skills.test.ts tests/omics.test.ts tests/v1-examples.test.ts tests/guide-markdown.test.ts tests/tutorial-content.test.ts",
     "test:launcher": "node --import tsx --test tests/environment-launcher.test.ts",
     "build:launcher:macos": "python3 native/environment-launcher/macos/build.py",
     "build:launcher:windows": "python3 native/environment-launcher/windows/build.py"
   },
   "dependencies": {
     "archiver": "7.0.1",
+    "diff": "9.0.0",
     "express": "5.1.0",
     "fflate": "0.8.3",
     "lucide-react": "0.468.0",
+    "marked": "17.0.6",
     "multer": "2.5.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",

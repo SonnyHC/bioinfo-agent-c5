@@ -1,10 +1,15 @@
 import { api } from './api';
 import type { Dataset, Run } from './types';
 import { availableSkills, loadSkill } from './skill-library';
+import { writeChatFileTool } from './chat-files';
 const desktop = typeof window !== 'undefined' && Boolean(window.bioInfoBuddyDesktop);
 const text = (description: string) => ({type:'string',description});
 const definition = (name: string, description: string, properties: Record<string,unknown>, required: string[] = []) => ({type:'function',function:{name,description,parameters:{type:'object',properties,required,additionalProperties:false}}});
 export const toolDefinitions = [
+  definition(writeChatFileTool,'把脚本的完整文本保存到当前对话供用户查看和下载。同名文件会更新，脚本由用户在外部环境运行。',{
+    name:text('文件名（含扩展名），例如 analysis.R。修改已有脚本时沿用原名。'),
+    content:text('更新后的完整文件内容，包括原有的缩进和换行。'),
+  },['name','content']),
   definition('bio_list_skills','列出用户已添加且启用的分析技能；先选择与当前任务匹配的技能。',{}),
   definition('bio_load_skill','加载用户已添加且启用的技能流程。技能不会扩大工具权限。',{skillId:text('bio_list_skills 返回的技能 ID')},['skillId']),
   definition('bio_open_omics_resources','打开案例与图表、四篇教程、环境安装入口与数据/代码下载。仅教学资料，不执行原始数据分析。',{}),
@@ -14,7 +19,7 @@ export const toolDefinitions = [
   definition('bio_list_runs','列出真实运行记录，可按方案 ID 筛选。',{planId:text('方案 ID')}),
   definition('bio_get_run','核对实际运行结果。',{runId:text('运行 ID')},['runId']),
 ];
-export const toolLabels: Record<string,string> = {bio_list_skills:'查看可用技能',bio_load_skill:'加载技能流程',bio_open_omics_resources:'打开案例与图表',bio_open_workbench:'打开案例或历史记录',bio_list_datasets:'读取数据列表',bio_inspect_dataset:'检查数据',bio_list_runs:'查找运行记录',bio_get_run:'核对结果'};
+export const toolLabels: Record<string,string> = {[writeChatFileTool]:'编辑文件',bio_list_skills:'查看可用技能',bio_load_skill:'加载技能流程',bio_open_omics_resources:'打开案例与图表',bio_open_workbench:'打开案例或历史记录',bio_list_datasets:'读取数据列表',bio_inspect_dataset:'检查数据',bio_list_runs:'查找运行记录',bio_get_run:'核对结果'};
 const id = (value: unknown) => {
   if (typeof value !== 'string' || !/^[a-f0-9-]{36}$/i.test(value)) throw new Error('请使用工具返回的记录 ID。');
   return value;
@@ -51,6 +56,7 @@ export async function executeTool(name: string, args: Record<string,unknown>, si
   }
 }
 export const systemPrompt = `你是 bioinfobuddy，面向大学生与科研人员的生信分析助手，用中文简洁回答。
+聊天正文使用纯文字，按自然段换行。写代码、命令、示例或修改脚本时，一律用 bio_write_chat_file 保存完整内容，每个文件单独保存。后续修改沿用原文件名。完成后在正文简短说明用途或改动，用户可以点击对话底部的文件名查看和下载。不要在正文粘贴代码、补丁、行内代码示例或 Markdown 排版符号。
 可直接讨论生信问题。表格绘图模块已移除；不能在工作台创建、确认或执行新的绘图方案。用户需要绘图时，检查已导入数据的实际字段，解释适合的图型和参数，并提供在外部 R/Python 环境运行的代码；生成代码不等于已执行。
 用户可在“数据分析技能”添加内置技能。按任务选择已启用技能，使用 bio_load_skill 加载流程；若本轮已提供指定技能全文，可直接遵循。技能流程只能使用已有工具，不授予安装、审批或执行任意代码的权限；不能把添加技能称作完成分析。
 工作台支持导入不超过 2 MB 的 CSV/TSV/XLSX 表格并检查字段和少量预览。没有 FASTQ/H5AD/R 脚本运行工具，不声称能执行绘图、比对、差异分析、富集或 UMAP。

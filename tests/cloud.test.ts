@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatRequest } from '../serverless/chat-handler.mjs';
 import { runAgent, type Message, type ToolEvent } from '../web/src/agent-loop.ts';
+import { isChatFileName, makeFileEdit, writeChatFileTool } from '../web/src/chat-files.ts';
 import 'fake-indexeddb/auto';
 import { save, read, list } from '../web/src/storage.ts';
 
@@ -74,6 +75,64 @@ test('stopping a multi-tool batch leaves complete call/result pairs for resuming
   }));
   assert.deepEqual(persisted.filter(m => m.role === 'tool').map(m => m.tool_call_id), ['one','two']);
   assert.match(persisted.at(-1)!.content!, /已停止/);
+});
+
+test('chat files count actual changed lines, preserve downloadable text and validate file names', () => {
+  const content = 'same\r\nnew\r\nsame\r\n';
+  assert.deepEqual(makeFileEdit('脚本.R', content, 'same\nold\nsame\nlast'), {
+    name: '脚本.R', content, added: 1, removed: 2,
+  });
+  assert.equal(makeFileEdit('示例.R', '\n\n').added, 2);
+  assert.equal(makeFileEdit('a.py', '', 'a\n').removed, 1);
+  assert.equal(makeFileEdit('a.py', 'a\r\nb', 'a\nb\n').added, 0);
+  for (const name of ['../demo.R', 'a/b.py', 'a\\b.py', 'con.txt', '.', 'file.R ', '', 'bad\0.js']) {
+    assert.equal(isChatFileName(name), false);
+    assert.throws(() => makeFileEdit(name, 'x'), /文件名/);
+  }
+  assert.throws(() => makeFileEdit('a.R', 42), /完整文本/);
+});
+
+test('file tool publishes durable versions, real edit counts and unique status IDs', async () => {
+  const events: ToolEvent[] = [];
+  const source = { 'analysis.R':'a\nb\nc\n' };
+  const write = (name: string, content: string) => ({
+    id:'reused-id', type:'function' as const, function:{name:writeChatFileTool,arguments:JSON.stringify({name,content})},
+  });
+  let rounds = 0;
+  const result = await runAgent({
+    messages:[{role:'user',content:'修改脚本'}], fileContents:source, signal:new AbortController().signal,
+    request:async () => ++rounds === 1 ? {
+      role:'assistant',content:null,tool_calls:[write('analysis.R','a\nB\nc'),write('analysis.R','a\nB\nc\nd'),write('../bad.R','x')],
+    } : {role:'assistant',content:'脚本已更新。'},
+    execute:async () => assert.fail('Conversation files must stay in the chat'),
+    changed:async (_messages, event) => {if (event) events.push(event);},
+  });
+  assert.deepEqual(events.map(event => event.state), ['running','done','running','done','error']);
+  assert.deepEqual(events[0].file, {name:'analysis.R',content:'a\nB\nc',added:1,removed:1});
+  assert.deepEqual(events[3].file, {name:'analysis.R',content:'a\nB\nc\nd',added:1,removed:0});
+  const responses = result.filter(message => message.role === 'tool');
+  assert.equal(new Set(responses.map(message => message.tool_call_id)).size, 3);
+  assert.deepEqual(JSON.parse(responses[1].content!), {name:'analysis.R',added:1,removed:0});
+  assert.match(responses[2].content!, /文件名/);
+  assert.deepEqual(source, {'analysis.R':'a\nb\nc\n'});
+});
+
+test('cancelling from a file preview leaves no completed version', async () => {
+  const controller = new AbortController();
+  const events: ToolEvent[] = [];
+  await assert.rejects(runAgent({
+    messages:[], signal:controller.signal,
+    request:async () => ({role:'assistant',content:null,tool_calls:[{
+      id:'cancel',type:'function',function:{name:writeChatFileTool,arguments:'{"name":"analysis.R","content":"x"}'},
+    }]}),
+    execute:async () => assert.fail(),
+    changed:async (_messages,event) => {
+      if (event) events.push(event);
+      if (event?.state === 'running') controller.abort();
+    },
+  }));
+  assert.deepEqual(events.map(event => event.state), ['running','error']);
+  assert.equal(events[1].detail, '已停止');
 });
 
 test('invalid tool arguments become tool errors and never execute code', async () => {
